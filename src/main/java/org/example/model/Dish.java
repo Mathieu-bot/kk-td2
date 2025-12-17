@@ -44,6 +44,12 @@ public class Dish {
         this.ingredients.add(ingredient);
     }
 
+    public double getDishPrice() {
+        return ingredients.stream()
+                .mapToDouble(Ingredient::getPrice)
+                .sum();
+    }
+
     @Override
     public String toString() {
         return "Dish{" +
