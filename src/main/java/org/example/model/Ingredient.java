@@ -17,25 +17,12 @@ public class Ingredient {
         this.dish = dish;
     }
 
-    public int getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public double getPrice() {
-        return price;
-    }
-
-    public CategoryEnum getCategory() {
-        return category;
-    }
-
-    public Dish getDish() {
-        return dish;
-    }
+    public int getId() { return id; }
+    public String getName() { return name; }
+    public double getPrice() { return price; }
+    public CategoryEnum getCategory() { return category; }
+    public Dish getDish() { return dish; }
+    public String getDishName() { return dish == null ? null : dish.getName(); }
 
     @Override
     public String toString() {
@@ -44,24 +31,24 @@ public class Ingredient {
                 ", name='" + name + '\'' +
                 ", price=" + price +
                 ", category=" + category +
+                ", dish=" + (dish == null ? null : dish.getName()) +
                 '}';
     }
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        Ingredient that = (Ingredient) o;
-        return id == that.id && Double.compare(price, that.price) == 0 && Objects.equals(name, that.name) && category == that.category && Objects.equals(dish, that.dish);
+        if (this == o) return true;
+        if (!(o instanceof Ingredient that)) return false;
+        return id == that.id &&
+                Double.compare(that.price, price) == 0 &&
+                Objects.equals(name, that.name) &&
+                category == that.category &&
+                Objects.equals(dish == null ? null : dish.getId(),
+                        that.dish == null ? null : that.dish.getId());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, price, category, dish);
+        return Objects.hash(id, name, price, category, dish == null ? null : dish.getId());
     }
-
-
-    public String getDishName() {
-        return dish.getName();
-    }
-
 }
