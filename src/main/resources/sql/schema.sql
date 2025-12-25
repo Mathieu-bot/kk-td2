@@ -1,4 +1,4 @@
--- Types ENUM
+
 CREATE TYPE ingredient_category AS ENUM (
     'VEGETABLE',
     'ANIMAL',
@@ -13,6 +13,12 @@ CREATE TYPE dish_type AS ENUM (
     'DESSERT'
 );
 
+CREATE TABLE dish (
+    id SERIAL CONSTRAINT dish_pk PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    dish_type dish_type NOT NULL
+);
+
 CREATE TABLE ingredient (
     id SERIAL CONSTRAINT ingredient_pk PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -24,11 +30,3 @@ CREATE TABLE ingredient (
             REFERENCES dish(id)
             ON DELETE SET NULL
 );
-
-
-CREATE TABLE dish (
-    id SERIAL CONSTRAINT dish_pk PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    dish_type dish_type NOT NULL
-);
-
