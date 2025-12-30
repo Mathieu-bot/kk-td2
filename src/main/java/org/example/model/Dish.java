@@ -10,13 +10,6 @@ public class Dish {
     private final DishTypeEnum dishType;
     private final List<Ingredient> ingredients;
 
-    public Dish(int id, String name, DishTypeEnum dishType, List<Ingredient> ingredients) {
-        this.id = id;
-        this.name = name;
-        this.dishType = dishType;
-        this.ingredients = ingredients;
-    }
-
     public Dish(int id, String name, DishTypeEnum dishType) {
         this.id = id;
         this.name = name;
@@ -24,24 +17,14 @@ public class Dish {
         this.ingredients = new ArrayList<>();
     }
 
-    public int getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public DishTypeEnum getDishType() {
-        return dishType;
-    }
-
-    public List<Ingredient> getIngredients() {
-        return ingredients;
-    }
+    public int getId() { return id; }
+    public String getName() { return name; }
+    public DishTypeEnum getDishType() { return dishType; }
+    public List<Ingredient> getIngredients() { return ingredients; }
+    public void setIngredients(List<Ingredient> ingredients) { this.ingredients.clear(); this.ingredients.addAll(ingredients); }
 
     public void addIngredient(Ingredient ingredient) {
-        this.ingredients.add(ingredient);
+        if (ingredient != null) this.ingredients.add(ingredient);
     }
 
     public double getDishPrice() {
@@ -62,13 +45,15 @@ public class Dish {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        Dish dish = (Dish) o;
-        return id == dish.id && Objects.equals(name, dish.name) && dishType == dish.dishType && Objects.equals(ingredients, dish.ingredients);
+        if (this == o) return true;
+        if (!(o instanceof Dish dish)) return false;
+        return id == dish.id &&
+                Objects.equals(name, dish.name) &&
+                dishType == dish.dishType;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, dishType, ingredients);
+        return Objects.hash(id, name, dishType);
     }
 }
