@@ -9,6 +9,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static java.sql.Types.INTEGER;
+
 public class DataRetriever {
 
     private final DBConnection dbConnection;
@@ -18,11 +20,7 @@ public class DataRetriever {
     }
 
     public Dish findDishById(int id) {
-        String sql = """
-            SELECT id, name, dish_type
-            FROM dish
-            WHERE id = ?
-            """;
+        String sql = "SELECT id, name, dish_type FROM dish WHERE id = ?";
         Connection connection = dbConnection.getDBConnection();
 
         try {
@@ -50,11 +48,7 @@ public class DataRetriever {
 
     private List<Ingredient> findIngredientsByDishId(int dishId) {
         List<Ingredient> ingredients = new ArrayList<>();
-        String sql = """
-            SELECT id, name, price, category
-            FROM ingredient
-            WHERE id_dish = ?
-            """;
+        String sql = "SELECT id, name, price, category FROM ingredient WHERE id_dish = ?";
         Connection connection = dbConnection.getDBConnection();
 
         try {
@@ -79,33 +73,33 @@ public class DataRetriever {
             LIMIT ? OFFSET ?
         """;
 
-       Connection connection = dbConnection.getDBConnection();
+        Connection connection = dbConnection.getDBConnection();
 
         try {
             PreparedStatement ps = connection.prepareStatement(sql);
             ps.setInt(1, size);
             ps.setInt(2, offset);
 
-                ResultSet rs = ps.executeQuery();
-                while (rs.next()) {
-                    Dish dish = null;
-                    int dishId = rs.getInt("dish_id");
-                    if (!rs.wasNull()) {
-                        String dt = rs.getString("dish_type");
-                        DishTypeEnum dishType = dt == null ? null : DishTypeEnum.valueOf(dt.toUpperCase());
-                        dish = new Dish(dishId, rs.getString("dish_name"), dishType);
-                    }
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                Dish dish = null;
+                int dishId = rs.getInt("dish_id");
+                if (!rs.wasNull()) {
+                    String dt = rs.getString("dish_type");
+                    DishTypeEnum dishType = dt == null ? null : DishTypeEnum.valueOf(dt.toUpperCase());
+                    dish = new Dish(dishId, rs.getString("dish_name"), dishType);
+                }
 
-                    CategoryEnum category = CategoryEnum.valueOf(rs.getString("category").toUpperCase());
-                    Ingredient ingredient = new Ingredient(
-                            rs.getInt("ingredient_id"),
-                            rs.getString("ingredient_name"),
-                            rs.getDouble("price"),
-                            category,
-                            dish
-                    );
-                    ingredients.add(ingredient);
-                    }
+                CategoryEnum category = CategoryEnum.valueOf(rs.getString("category").toUpperCase());
+                Ingredient ingredient = new Ingredient(
+                        rs.getInt("ingredient_id"),
+                        rs.getString("ingredient_name"),
+                        rs.getDouble("price"),
+                        category,
+                        dish
+                );
+                ingredients.add(ingredient);
+            }
             return ingredients;
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -121,15 +115,20 @@ public class DataRetriever {
         try {
             conn.setAutoCommit(false);
             for (Ingredient ingredient : newIngredients) {
-                if (ingredientExists(conn, ingredient.getName())) {
+                if (ingredientExists(conn, ingredient.getName(), ingredient.getDish() != null ? ingredient.getDish().getId() : null)) {
                     throw new RuntimeException(
                             "Ingredient already exists in database: " + ingredient.getName()
                     );
                 }
-                String sql = "INSERT INTO ingredient(name, category) VALUES (?, ?)";
+                String sql = "INSERT INTO ingredient(name, category, id_dish) VALUES (?, ?, ?)";
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, ingredient.getName());
                     ps.setString(2, ingredient.getCategory().name());
+                    if (ingredient.getDish() != null) {
+                        ps.setInt(3, ingredient.getDish().getId());
+                    } else {
+                        ps.setNull(3, INTEGER);
+                    }
                     ps.executeUpdate();
                 }
             }
@@ -166,12 +165,21 @@ public class DataRetriever {
         }
     }
 
-    private boolean ingredientExists(Connection conn, String name) throws SQLException {
-        String sql = "SELECT id FROM ingredient WHERE name = ?";
+    private boolean ingredientExists(Connection conn, String name, Integer dishId) {
+        String sql = "SELECT id FROM ingredient WHERE name = ? AND (id_dish = ? OR (id_dish IS NULL AND ? IS NULL))";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, name);
+            if (dishId != null) {
+                ps.setInt(2, dishId);
+                ps.setInt(3, dishId);
+            } else {
+                ps.setNull(2, INTEGER);
+                ps.setNull(3, INTEGER);
+            }
             ResultSet rs = ps.executeQuery();
             return rs.next();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
     }
 
