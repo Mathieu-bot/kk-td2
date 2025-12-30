@@ -5,7 +5,9 @@ import org.example.database.DBConnection;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class DataRetriever {
 
@@ -112,10 +114,71 @@ public class DataRetriever {
         }
     }
 
+    public List<Ingredient> createIngredients(List<Ingredient> newIngredients) {
+        checkDuplicatesInList(newIngredients);
+        Connection conn = dbConnection.getDBConnection();
+
+        try {
+            conn.setAutoCommit(false);
+            for (Ingredient ingredient : newIngredients) {
+                if (ingredientExists(conn, ingredient.getName())) {
+                    throw new RuntimeException(
+                            "Ingredient already exists in database: " + ingredient.getName()
+                    );
+                }
+                String sql = "INSERT INTO ingredient(name, category) VALUES (?, ?)";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setString(1, ingredient.getName());
+                    ps.setString(2, ingredient.getCategory().name());
+                    ps.executeUpdate();
+                }
+            }
+
+            conn.commit();
+            return newIngredients;
+
+        } catch (Exception e) {
+            try {
+                conn.rollback();
+            } catch (SQLException ex) {
+                throw new RuntimeException("Rollback failed", ex);
+            }
+            throw new RuntimeException("Transaction failed: " + e.getMessage(), e);
+        } finally {
+            try {
+                conn.setAutoCommit(true);
+            } catch (SQLException e) {
+                // ignore
+            }
+            dbConnection.close(conn);
+        }
+    }
+
+    private void checkDuplicatesInList(List<Ingredient> ingredients) {
+        Set<String> names = new HashSet<>();
+
+        for (Ingredient ingredient : ingredients) {
+            if (!names.add(ingredient.getName().toLowerCase())) {
+                throw new RuntimeException(
+                        "Duplicate ingredient in provided list: " + ingredient.getName()
+                );
+            }
+        }
+    }
+
+    private boolean ingredientExists(Connection conn, String name) throws SQLException {
+        String sql = "SELECT id FROM ingredient WHERE name = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, name);
+            ResultSet rs = ps.executeQuery();
+            return rs.next();
+        }
+    }
+
     private List<Ingredient> getIngredients(List<Ingredient> ingredients, PreparedStatement ps) throws SQLException {
         ResultSet resultSet = ps.executeQuery();
 
-        if (resultSet.next()) {
+        while (resultSet.next()) {
             Ingredient ingredient = new Ingredient(
                     resultSet.getInt("id"),
                     resultSet.getString("name"),
