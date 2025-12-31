@@ -213,6 +213,74 @@ public class DataRetriever {
         }
     }
 
+    public List<Ingredient> findIngredientsByCriteria(String ingredientName, CategoryEnum category, String dishName, int page, int size){
+        List<Ingredient> ingredients = new ArrayList<Ingredient>();
+        int offset = (page - 1 ) * size;
+        StringBuilder sql = new StringBuilder("""
+            SELECT i.id AS ingredient_id, i.name AS ingredient_name, i.price, i.category,
+                   d.id AS dish_id, d.name AS dish_name, d.dish_type
+            FROM ingredient i
+            LEFT JOIN dish d ON i.id_dish = d.id
+            WHERE 1=1
+        """);
+
+        List<Object> params = new ArrayList<>();
+
+        if (ingredientName != null) {
+            sql.append(" AND i.name ILIKE ?");
+            params.add("%" + ingredientName + "%");
+        }
+
+        if (category != null) {
+            sql.append(" AND i.category = ?");
+            params.add(category.name());
+        }
+
+        if (dishName != null) {
+            sql.append(" AND d.name ILIKE ?");
+            params.add("%" + dishName + "%");
+        }
+
+        sql.append(" LIMIT ? OFFSET ?");
+        params.add(size);
+        params.add(offset);
+
+        Connection connection = dbConnection.getDBConnection();
+
+        try (PreparedStatement ps = connection.prepareStatement(sql.toString())) {
+            for (int i = 0; i < params.size(); i++) {
+                Object param = params.get(i);
+                if (param instanceof String) {
+                    ps.setString(i + 1, (String) param);
+                } else if (param instanceof Integer) {
+                    ps.setInt(i + 1, (Integer) param);
+                }
+            }
+
+            ResultSet rs = ps.executeQuery();
+
+            while (rs.next()) {
+
+                Ingredient ingredient = new Ingredient(
+                        rs.getInt("ingredient_id"),
+                        rs.getString("ingredient_name"),
+                        rs.getDouble("price"),
+                        CategoryEnum.valueOf(rs.getString("category").toUpperCase()),
+                        getDisIngredient(rs)
+                );
+
+                ingredients.add(ingredient);
+            }
+
+            return ingredients;
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } finally {
+            dbConnection.close(connection);
+        }
+    }
+
     private Dish getDisIngredient(ResultSet rs) throws SQLException {
         Dish dish = null;
         int dishId = rs.getInt("dish_id");
