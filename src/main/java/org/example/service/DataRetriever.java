@@ -145,6 +145,48 @@ public class DataRetriever {
         }
     }
 
+    public Dish saveDish(Dish dishToSave) {
+        String insertSql = "INSERT INTO dish(name, dish_type) VALUES (?, ?)";
+        String updateSql = "UPDATE dish SET name = ?, dish_type = ? WHERE id = ?";
+
+        Connection conn = dbConnection.getDBConnection();
+
+        try {
+            if (dishToSave.getId() > 0) {
+                try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
+                    ps.setString(1, dishToSave.getName());
+                    ps.setString(2, dishToSave.getDishType().name());
+                    ps.setInt(3, dishToSave.getId());
+                    ps.executeUpdate();
+                }
+            } else {
+                try (PreparedStatement ps = conn.prepareStatement(
+                        insertSql,
+                        Statement.RETURN_GENERATED_KEYS
+                )) {
+                    ps.setString(1, dishToSave.getName());
+                    ps.setString(2, dishToSave.getDishType().name());
+                    ps.executeUpdate();
+
+                    ResultSet rs = ps.getGeneratedKeys();
+                    if (rs.next()) {
+                        dishToSave = new Dish(
+                                rs.getInt(1),
+                                dishToSave.getName(),
+                                dishToSave.getDishType()
+                        );
+                    }
+                }
+            }
+            return dishToSave;
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } finally {
+            dbConnection.close(conn);
+        }
+    }
+
     private Dish getDisIngredient(ResultSet rs) throws SQLException {
         Dish dish = null;
         int dishId = rs.getInt("dish_id");
