@@ -187,6 +187,32 @@ public class DataRetriever {
         }
     }
 
+    public List<Dish> findDishByIngredientName(String ingredientName) {
+        List<Dish> dishes = new ArrayList<Dish>();
+        String sql = "SELECT d.id, d.name, d.dish_type FROM dish d JOIN ingredient i ON i.id_dish = d.id WHERE i.name ILIKE ?";
+        Connection connection = dbConnection.getDBConnection();
+
+        try {
+            PreparedStatement ps = connection.prepareStatement(sql);
+            ps.setString(1, "%" + ingredientName + "%");
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                Dish dish = new Dish(
+                        rs.getInt("id"),
+                        rs.getString("name"),
+                        DishTypeEnum.valueOf(rs.getString("dish_type"))
+                );
+                dishes.add(dish);
+            }
+
+            return dishes;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } finally {
+            dbConnection.close(connection);
+        }
+    }
+
     private Dish getDisIngredient(ResultSet rs) throws SQLException {
         Dish dish = null;
         int dishId = rs.getInt("dish_id");
