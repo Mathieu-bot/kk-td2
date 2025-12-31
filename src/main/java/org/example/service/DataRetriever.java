@@ -82,21 +82,13 @@ public class DataRetriever {
 
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                Dish dish = null;
-                int dishId = rs.getInt("dish_id");
-                if (!rs.wasNull()) {
-                    String dt = rs.getString("dish_type");
-                    DishTypeEnum dishType = dt == null ? null : DishTypeEnum.valueOf(dt.toUpperCase());
-                    dish = new Dish(dishId, rs.getString("dish_name"), dishType);
-                }
-
                 CategoryEnum category = CategoryEnum.valueOf(rs.getString("category").toUpperCase());
                 Ingredient ingredient = new Ingredient(
                         rs.getInt("ingredient_id"),
                         rs.getString("ingredient_name"),
                         rs.getDouble("price"),
                         category,
-                        dish
+                        getDisIngredient(rs)
                 );
                 ingredients.add(ingredient);
             }
@@ -151,6 +143,17 @@ public class DataRetriever {
             }
             dbConnection.close(conn);
         }
+    }
+
+    private Dish getDisIngredient(ResultSet rs) throws SQLException {
+        Dish dish = null;
+        int dishId = rs.getInt("dish_id");
+        if (!rs.wasNull()) {
+            String dt = rs.getString("dish_type");
+            DishTypeEnum dishType = dt == null ? null : DishTypeEnum.valueOf(dt.toUpperCase());
+            dish = new Dish(dishId, rs.getString("dish_name"), dishType);
+        }
+        return dish;
     }
 
     private void checkDuplicatesInList(List<Ingredient> ingredients) {
