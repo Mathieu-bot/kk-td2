@@ -1,6 +1,7 @@
 package org.example.service;
 
 import org.example.database.DBConnection;
+import org.example.model.CategoryEnum;
 import org.example.model.Dish;
 import org.example.model.DishTypeEnum;
 import org.example.model.Ingredient;
@@ -57,6 +58,10 @@ class DataRetrieverTest {
     }
 
     @Test
-    void findIngredientsByCriteria() {
+    void testFindIngredientsByCriteria_categoryOnly() {
+        List<Ingredient> ingredients = dataRetriever.findIngredientsByCriteria(
+                null, CategoryEnum.VEGETABLE, null, 1, 10
+        );
+        assertEquals(2, ingredients.size());
     }
 }
