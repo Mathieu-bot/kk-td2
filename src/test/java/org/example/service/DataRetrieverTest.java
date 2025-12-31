@@ -85,4 +85,11 @@ class DataRetrieverTest {
         assertEquals(2, created.size());
     }
 
+    @Test
+    void testCreateIngredients_duplicate() {
+        Ingredient carotte = new Ingredient(0, "Carotte", 2000, CategoryEnum.VEGETABLE, null);
+        Ingredient laitue = new Ingredient(0, "Laitue", 2000, CategoryEnum.VEGETABLE, null);
+        assertThrows(RuntimeException.class, () -> dataRetriever.createIngredients(List.of(carotte, laitue)));
+    }
+
 }
