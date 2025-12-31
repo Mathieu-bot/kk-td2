@@ -1,14 +1,18 @@
 package org.example.database;
 
+import io.github.cdimascio.dotenv.Dotenv;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
 public class DBConnection {
 
-    private final String JDBC_URL = System.getenv("JDBC_URL");
-    private final String USERNAME = System.getenv("USERNAME");
-    private final String PASSWORD = System.getenv("PASSWORD");
+    private final Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
+
+    private final String JDBC_URL = dotenv.get("JDBC_URL");
+    private final String USERNAME = dotenv.get("USERNAME");
+    private final String PASSWORD = dotenv.get("PASSWORD");
 
     public Connection getDBConnection()  {
         try {
