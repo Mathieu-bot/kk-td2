@@ -72,4 +72,14 @@ class DataRetrieverTest {
         );
         assertTrue(ingredients.isEmpty());
     }
+
+    @Test
+    void testFindIngredientsByCriteria_specific() {
+        List<Ingredient> ingredients = dataRetriever.findIngredientsByCriteria(
+                "cho", null, "gâteau", 1, 10
+        );
+        assertEquals(1, ingredients.size());
+        assertEquals("Chocolat", ingredients.getFirst().getName());
+    }
+
 }
