@@ -50,7 +50,10 @@ class DataRetrieverTest {
     }
 
     @Test
-    void findDishByIngredientName() {
+    void testFindDishByIngredientName() {
+        List<Dish> dishes = dataRetriever.findDishByIngredientName("eur");
+        assertEquals(1, dishes.size());
+        assertEquals("Gateau au chocolat", dishes.getFirst().getName());
     }
 
     @Test
