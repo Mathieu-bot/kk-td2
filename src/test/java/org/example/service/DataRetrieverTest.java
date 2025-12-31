@@ -41,11 +41,6 @@ class DataRetrieverTest {
         assertTrue(ingredients.isEmpty());
     }
 
-
-    @Test
-    void createIngredients() {
-    }
-
     @Test
     void saveDish() {
     }
@@ -80,6 +75,14 @@ class DataRetrieverTest {
         );
         assertEquals(1, ingredients.size());
         assertEquals("Chocolat", ingredients.getFirst().getName());
+    }
+
+    @Test
+    void testCreateIngredients_success() {
+        Ingredient from = new Ingredient(0, "Fromage", 1200, CategoryEnum.DAIRY, null);
+        Ingredient oignon = new Ingredient(0, "Oignon", 500, CategoryEnum.VEGETABLE, null);
+        List<Ingredient> created = dataRetriever.createIngredients(List.of(from, oignon));
+        assertEquals(2, created.size());
     }
 
 }
