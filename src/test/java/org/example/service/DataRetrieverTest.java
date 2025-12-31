@@ -3,9 +3,12 @@ package org.example.service;
 import org.example.database.DBConnection;
 import org.example.model.Dish;
 import org.example.model.DishTypeEnum;
+import org.example.model.Ingredient;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 class DataRetrieverTest {
     DataRetriever dataRetriever = new DataRetriever(new DBConnection());
@@ -23,10 +26,20 @@ class DataRetrieverTest {
         assertThrows(RuntimeException.class, () -> dataRetriever.findDishById(999));
     }
 
+    @Test
+    void testFindIngredients_page2_size2() {
+        List<Ingredient> ingredients = dataRetriever.findIngredients(2, 2);
+        assertEquals(2, ingredients.size());
+        assertEquals("Poulet", ingredients.get(0).getName());
+        assertEquals("Chocolat", ingredients.get(1).getName());
+    }
 
     @Test
-    void findIngredients() {
+    void testFindIngredients_emptyPage() {
+        List<Ingredient> ingredients = dataRetriever.findIngredients(3, 5);
+        assertTrue(ingredients.isEmpty());
     }
+
 
     @Test
     void createIngredients() {
