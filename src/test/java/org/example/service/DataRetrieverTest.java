@@ -127,4 +127,19 @@ class DataRetrieverTest {
         assertThrows(RuntimeException.class, () -> dataRetriever.createIngredients(List.of(carotte, laitue)));
     }
 
+    @Test
+    void testSaveDish_newDish() {
+        Dish newDish = new Dish(0, "Soupe de legumes", DishTypeEnum.START);
+        newDish.addIngredient(new Ingredient(0, "Oignon", 500.0, CategoryEnum.VEGETABLE, null));
+        newDish.addIngredient(new Ingredient(0, "Fromage", 1200.0, CategoryEnum.DAIRY, null));
+
+        Dish saved = dataRetriever.saveDish(newDish);
+
+        assertTrue(saved.getId() > 0);
+        assertEquals("Soupe de legumes", saved.getName());
+        assertEquals(2, saved.getIngredients().size());
+        assertTrue(saved.getIngredients().stream().anyMatch(i -> i.getName().equals("Oignon")));
+        assertTrue(saved.getIngredients().stream().anyMatch(i -> i.getName().equals("Fromage")));
+    }
+
 }
