@@ -2,7 +2,7 @@ INSERT INTO dish (id, name, dish_type) VALUES
     (1, 'Salade fraiche', 'START'),
     (2, 'Poulet grille', 'MAIN'),
     (3, 'Riz aux legumes', 'MAIN'),
-    (4, 'Geteau au chocolat', 'DESSERT'),
+    (4, 'Gateau au chocolat', 'DESSERT'),
     (5, 'Salade de fruits', 'DESSERT');
 
 SELECT setval(
