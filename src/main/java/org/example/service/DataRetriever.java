@@ -112,14 +112,15 @@ public class DataRetriever {
                             "Ingredient already exists in database: " + ingredient.getName()
                     );
                 }
-                String sql = "INSERT INTO ingredient(name, category, id_dish) VALUES (?, ?, ?)";
+                String sql = "INSERT INTO ingredient(name, category, price, id_dish) VALUES (?, ?, ?, ?)";
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, ingredient.getName());
                     ps.setString(2, ingredient.getCategory().name());
+                    ps.setDouble(3, ingredient.getPrice());
                     if (ingredient.getDish() != null) {
-                        ps.setInt(3, ingredient.getDish().getId());
+                        ps.setInt(4, ingredient.getDish().getId());
                     } else {
-                        ps.setNull(3, INTEGER);
+                        ps.setNull(4, INTEGER);
                     }
                     ps.executeUpdate();
                 }
@@ -150,6 +151,7 @@ public class DataRetriever {
         String updateSql = "UPDATE dish SET name = ?, dish_type = ? WHERE id = ?";
 
         Connection conn = dbConnection.getDBConnection();
+        int dishID;
 
         try {
             if (dishToSave.getId() > 0) {
@@ -157,8 +159,12 @@ public class DataRetriever {
                     ps.setString(1, dishToSave.getName());
                     ps.setString(2, dishToSave.getDishType().name());
                     ps.setInt(3, dishToSave.getId());
-                    ps.executeUpdate();
+                    int updated = ps.executeUpdate();
+                    if (updated == 0) {
+                        throw new RuntimeException("Dish not found (id=" + dishToSave.getId() + ")");
+                    }
                 }
+                dishID = dishToSave.getId();
             } else {
                 try (PreparedStatement ps = conn.prepareStatement(
                         insertSql,
@@ -169,16 +175,34 @@ public class DataRetriever {
                     ps.executeUpdate();
 
                     ResultSet rs = ps.getGeneratedKeys();
-                    if (rs.next()) {
-                        dishToSave = new Dish(
-                                rs.getInt(1),
-                                dishToSave.getName(),
-                                dishToSave.getDishType()
-                        );
+                    if (!rs.next()) {
+                        throw new RuntimeException("Failed to insert dish");
                     }
+                    dishID = rs.getInt(1);
                 }
             }
-            return dishToSave;
+
+            String deleteIngredientsSql = "DELETE FROM ingredient WHERE id_dish = ?";
+            try {
+                PreparedStatement ps = conn.prepareStatement(deleteIngredientsSql);
+                ps.setInt(1, dishID);
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+
+            String insertIngredientsSql = "INSERT INTO ingredient(name, category, price, id_dish) VALUES (?, ?, ?, ?)";
+            for (Ingredient ing : dishToSave.getIngredients()) {
+                try (PreparedStatement ps = conn.prepareStatement(insertIngredientsSql)) {
+                    ps.setString(1, ing.getName());
+                    ps.setString(2, ing.getCategory().name());
+                    ps.setDouble(3, ing.getPrice());
+                    ps.setInt(4, dishID);
+                    ps.executeUpdate();
+                }
+            }
+
+            return findDishById(dishID);
 
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -305,16 +329,9 @@ public class DataRetriever {
     }
 
     private boolean ingredientExists(Connection conn, String name, Integer dishId) {
-        String sql = "SELECT id FROM ingredient WHERE name = ? AND (id_dish = ? OR (id_dish IS NULL AND ? IS NULL))";
+        String sql = "SELECT id FROM ingredient WHERE name = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, name);
-            if (dishId != null) {
-                ps.setInt(2, dishId);
-                ps.setInt(3, dishId);
-            } else {
-                ps.setNull(2, INTEGER);
-                ps.setNull(3, INTEGER);
-            }
             ResultSet rs = ps.executeQuery();
             return rs.next();
         } catch (SQLException e) {
