@@ -256,7 +256,7 @@ public class DataRetriever {
         }
 
         if (category != null) {
-            sql.append(" AND i.category = ?");
+            sql.append(" AND i.category = ?::ingredient_category");
             params.add(category.name());
         }
 
