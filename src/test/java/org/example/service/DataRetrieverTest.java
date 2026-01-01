@@ -1,18 +1,55 @@
 package org.example.service;
 
 import org.example.database.DBConnection;
-import org.example.model.CategoryEnum;
-import org.example.model.Dish;
-import org.example.model.DishTypeEnum;
-import org.example.model.Ingredient;
-import org.junit.jupiter.api.Test;
+import org.example.model.*;
+import org.junit.jupiter.api.*;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DataRetrieverTest {
-    DataRetriever dataRetriever = new DataRetriever(new DBConnection());
+
+    private DataRetriever dataRetriever;
+    private DBConnection dbConnection;
+
+    @BeforeAll
+    void init() {
+        dbConnection = new DBConnection();
+        dataRetriever = new DataRetriever(dbConnection);
+    }
+
+    @BeforeEach
+    void resetDatabaseTables() throws SQLException, IOException {
+        try (Connection conn = dbConnection.getDBConnection();
+             Statement stmt = conn.createStatement()) {
+
+            stmt.execute("DELETE FROM ingredient;");
+            stmt.execute("DELETE FROM dish;");
+
+            stmt.execute("SELECT setval(pg_get_serial_sequence('dish', 'id'), 1, false);");
+            stmt.execute("SELECT setval(pg_get_serial_sequence('ingredient', 'id'), 1, false);");
+
+            String dataSql = Files.readString(Paths.get("src/main/resources/sql/data.sql"));
+
+            for (String command : dataSql.split(";")) {
+                String trimmed = command.trim();
+                if (!trimmed.isEmpty() && !trimmed.toUpperCase().startsWith("SELECT SETVAL")) {
+                    stmt.execute(trimmed);
+                }
+            }
+
+            stmt.execute("SELECT setval(pg_get_serial_sequence('dish', 'id'), (SELECT COALESCE(MAX(id),0) + 1 FROM dish), false);");
+            stmt.execute("SELECT setval(pg_get_serial_sequence('ingredient', 'id'), (SELECT COALESCE(MAX(id),0) + 1 FROM ingredient), false);");
+        }
+    }
 
     @Test
     void testFindDishById_existing() {
@@ -20,6 +57,8 @@ class DataRetrieverTest {
         assertEquals("Salade fraiche", dish.getName());
         assertEquals(DishTypeEnum.START, dish.getDishType());
         assertEquals(2, dish.getIngredients().size());
+        assertTrue(dish.getIngredients().stream().anyMatch(i -> i.getName().equals("Laitue")));
+        assertTrue(dish.getIngredients().stream().anyMatch(i -> i.getName().equals("Tomate")));
     }
 
     @Test
@@ -42,10 +81,6 @@ class DataRetrieverTest {
     }
 
     @Test
-    void saveDish() {
-    }
-
-    @Test
     void testFindDishByIngredientName() {
         List<Dish> dishes = dataRetriever.findDishByIngredientName("eur");
         assertEquals(1, dishes.size());
@@ -58,20 +93,20 @@ class DataRetrieverTest {
                 null, CategoryEnum.VEGETABLE, null, 1, 10
         );
         assertEquals(2, ingredients.size());
+        assertTrue(ingredients.stream().allMatch(i -> i.getCategory() == CategoryEnum.VEGETABLE));
     }
 
     @Test
-    void testFindIngredientsByCriteria_noResult() {
+    void test7g_findIngredientsByCriteria_noResult() {
         List<Ingredient> ingredients = dataRetriever.findIngredientsByCriteria(
-                "cho", null, "Sal", 1, 10
-        );
+                "Cho", null, "Beur", 1, 10);
         assertTrue(ingredients.isEmpty());
     }
 
     @Test
     void testFindIngredientsByCriteria_specific() {
         List<Ingredient> ingredients = dataRetriever.findIngredientsByCriteria(
-                "cho", null, "gâteau", 1, 10
+                "cho", null, "gateau", 1, 10
         );
         assertEquals(1, ingredients.size());
         assertEquals("Chocolat", ingredients.getFirst().getName());
