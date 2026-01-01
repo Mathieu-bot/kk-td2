@@ -142,4 +142,21 @@ class DataRetrieverTest {
         assertTrue(saved.getIngredients().stream().anyMatch(i -> i.getName().equals("Fromage")));
     }
 
+    @Test
+    void testSaveDish_updateExisting() {
+        Dish salad = dataRetriever.findDishById(1);
+
+        salad.addIngredient(new Ingredient(0, "Oignon", 500.0, CategoryEnum.VEGETABLE, null));
+        salad.addIngredient(new Ingredient(0, "Fromage", 1200.0, CategoryEnum.DAIRY, null));
+
+        Dish updated = dataRetriever.saveDish(salad);
+
+        assertEquals(1, updated.getId());
+        assertEquals("Salade fraiche", updated.getName());
+        assertEquals(4, updated.getIngredients().size());
+        assertTrue(updated.getIngredients().stream().anyMatch(i -> i.getName().equals("Laitue")));
+        assertTrue(updated.getIngredients().stream().anyMatch(i -> i.getName().equals("Tomate")));
+        assertTrue(updated.getIngredients().stream().anyMatch(i -> i.getName().equals("Oignon")));
+        assertTrue(updated.getIngredients().stream().anyMatch(i -> i.getName().equals("Fromage")));
+    }
 }
