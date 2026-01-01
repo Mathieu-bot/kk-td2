@@ -112,7 +112,7 @@ public class DataRetriever {
                             "Ingredient already exists in database: " + ingredient.getName()
                     );
                 }
-                String sql = "INSERT INTO ingredient(name, category, price, id_dish) VALUES (?, ?, ?, ?)";
+                String sql = "INSERT INTO ingredient(name, category, price, id_dish) VALUES (?, ?::ingredient_category, ?, ?)";
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, ingredient.getName());
                     ps.setString(2, ingredient.getCategory().name());
@@ -147,8 +147,8 @@ public class DataRetriever {
     }
 
     public Dish saveDish(Dish dishToSave) {
-        String insertSql = "INSERT INTO dish(name, dish_type) VALUES (?, ?)";
-        String updateSql = "UPDATE dish SET name = ?, dish_type = ? WHERE id = ?";
+        String insertSql = "INSERT INTO dish(name, dish_type) VALUES (?, ?::dish_type)";
+        String updateSql = "UPDATE dish SET name = ?, dish_type = ?::dish_type WHERE id = ?";
 
         Connection conn = dbConnection.getDBConnection();
         int dishID;
@@ -191,7 +191,7 @@ public class DataRetriever {
                 throw new RuntimeException(e);
             }
 
-            String insertIngredientsSql = "INSERT INTO ingredient(name, category, price, id_dish) VALUES (?, ?, ?, ?)";
+            String insertIngredientsSql = "INSERT INTO ingredient(name, category, price, id_dish) VALUES (?, ?::ingredient_category, ?, ?)";
             for (Ingredient ing : dishToSave.getIngredients()) {
                 try (PreparedStatement ps = conn.prepareStatement(insertIngredientsSql)) {
                     ps.setString(1, ing.getName());
