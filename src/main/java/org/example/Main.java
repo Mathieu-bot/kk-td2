@@ -1,14 +1,70 @@
 package org.example;
 
 import org.example.database.DBConnection;
+import org.example.model.*;
 import org.example.service.DataRetriever;
 
 public class Main {
-    public static void main(String[] args) {
 
-        DataRetriever retriever = new DataRetriever(new DBConnection());
-        System.out.println(retriever.findDishById(1));
+    public static void main(String[] args) throws Exception {
 
-        System.out.println(retriever.findIngredients(1, 3));
+        DBConnection dbConnection = new DBConnection();
+        DataRetriever dataRetriever = new DataRetriever(dbConnection);
+
+        System.out.println("=== FIND DISH TEST ===");
+
+        Dish dish = dataRetriever.findDishById(1);
+        System.out.println("Dish name: " + dish.getName());
+        System.out.println("Dish cost: " + dish.getDishCost());
+
+        try {
+            System.out.println("Gross margin: " + dish.getGrossMargin());
+        } catch (IllegalStateException e) {
+            System.out.println("Expected error: " + e.getMessage());
+        }
+
+        System.out.println("\n=== UPDATE PRICE TEST ===");
+
+        dish.setPrice(5000.0);
+        Dish updatedDish = dataRetriever.saveDish(dish);
+
+        System.out.println("Updated price: " + updatedDish.getPrice());
+        System.out.println("Gross margin after update: " +
+                updatedDish.getGrossMargin());
+
+        System.out.println("\n=== CREATE DISH TEST ===");
+
+        Dish newDish = new Dish(
+                0,
+                "Test Dish",
+                DishTypeEnum.MAIN,
+                3000.0
+        );
+
+        Ingredient salt = new Ingredient(
+                0,
+                "Salt",
+                200,
+                CategoryEnum.OTHER,
+                newDish
+        );
+
+        Ingredient oil = new Ingredient(
+                0,
+                "Oil",
+                300,
+                CategoryEnum.OTHER,
+                newDish
+        );
+
+        newDish.getIngredients().add(salt);
+        newDish.getIngredients().add(oil);
+
+        Dish savedDish = dataRetriever.saveDish(newDish);
+
+        System.out.println("New dish ID: " + savedDish.getId());
+        System.out.println("Dish cost: " + savedDish.getDishCost());
+        System.out.println("Gross margin: " + savedDish.getGrossMargin());
+
     }
 }
