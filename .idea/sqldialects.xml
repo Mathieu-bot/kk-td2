@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SqlDialectMappings">
+    <file url="file://$PROJECT_DIR$/src/main/java/org/example/service/DataRetriever.java" dialect="PostgreSQL" />
+    <file url="file://$PROJECT_DIR$/src/main/resources/sql/data.sql" dialect="PostgreSQL" />
+    <file url="file://$PROJECT_DIR$/src/main/resources/sql/db.sql" dialect="PostgreSQL" />
+    <file url="file://$PROJECT_DIR$/src/main/resources/sql/schema.sql" dialect="PostgreSQL" />
+    <file url="file://$PROJECT_DIR$/src/test/java/org/example/service/DataRetrieverTest.java" dialect="PostgreSQL" />
+  </component>
+</project>

@@ -8,6 +8,7 @@ public class Dish {
     private final int id;
     private final String name;
     private final DishTypeEnum dishType;
+    private Double price;
     private final List<Ingredient> ingredients;
 
     public Dish(int id, String name, DishTypeEnum dishType) {
@@ -27,10 +28,19 @@ public class Dish {
         if (ingredient != null) this.ingredients.add(ingredient);
     }
 
-    public double getDishPrice() {
+    public double getDishCost() {
         return ingredients.stream()
                 .mapToDouble(Ingredient::getPrice)
                 .sum();
+    }
+
+    public Double getGrossMargin() {
+        if (price == null) {
+            throw new IllegalStateException(
+                    "price not define, not possible to calculate margin"
+            );
+        }
+        return price - getDishCost();
     }
 
     @Override
