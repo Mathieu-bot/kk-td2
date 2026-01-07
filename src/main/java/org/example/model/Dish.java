@@ -11,24 +11,41 @@ public class Dish {
     private Double price;
     private final List<Ingredient> ingredients;
 
-    public Dish(int id, String name, DishTypeEnum dishType) {
+    public Dish(int id, String name, DishTypeEnum dishType, Double price) {
         this.id = id;
         this.name = name;
         this.dishType = dishType;
+        this.price = price;
         this.ingredients = new ArrayList<>();
+    }
+
+    public Dish(int id, String name, DishTypeEnum dishType) {
+        this(id, name, dishType, null);
     }
 
     public int getId() { return id; }
     public String getName() { return name; }
     public DishTypeEnum getDishType() { return dishType; }
-    public List<Ingredient> getIngredients() { return ingredients; }
-    public void setIngredients(List<Ingredient> ingredients) { this.ingredients.clear(); this.ingredients.addAll(ingredients); }
+    public Double getPrice() { return price; }
 
-    public void addIngredient(Ingredient ingredient) {
-        if (ingredient != null) this.ingredients.add(ingredient);
+    public void setPrice(Double price) {
+        this.price = price;
     }
 
-    public double getDishCost() {
+    public List<Ingredient> getIngredients() { return ingredients; }
+
+    public void setIngredients(List<Ingredient> ingredients) {
+        this.ingredients.clear();
+        this.ingredients.addAll(ingredients);
+    }
+
+    public void addIngredient(Ingredient ingredient) {
+        if (ingredient != null) {
+            this.ingredients.add(ingredient);
+        }
+    }
+
+    public Double getDishCost() {
         return ingredients.stream()
                 .mapToDouble(Ingredient::getPrice)
                 .sum();
@@ -37,7 +54,7 @@ public class Dish {
     public Double getGrossMargin() {
         if (price == null) {
             throw new IllegalStateException(
-                    "price not define, not possible to calculate margin"
+                    "Price not found, not possible to calculate margin."
             );
         }
         return price - getDishCost();
@@ -49,6 +66,7 @@ public class Dish {
                 "id=" + id +
                 ", name='" + name + '\'' +
                 ", dishType=" + dishType +
+                ", price=" + price +
                 ", ingredients=" + ingredients +
                 '}';
     }
@@ -57,13 +75,11 @@ public class Dish {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Dish dish)) return false;
-        return id == dish.id &&
-                Objects.equals(name, dish.name) &&
-                dishType == dish.dishType;
+        return id == dish.id;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, dishType);
+        return Objects.hash(id);
     }
 }
