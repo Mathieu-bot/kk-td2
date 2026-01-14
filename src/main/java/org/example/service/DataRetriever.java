@@ -67,11 +67,12 @@ public class DataRetriever {
         List<Ingredient> ingredients = new ArrayList<>();
         int offset = (page - 1) * size;
         String sql = """
-            SELECT i.id AS ingredient_id, i.name AS ingredient_name, i.price, i.category,
-                   d.id AS dish_id, d.name AS dish_name, d.dish_type
+            SELECT i.id AS ingredient_id, i.name AS ingredient_name, i.price as ingredient_price, i.category,
+                   d.id AS dish_id, d.name AS dish_name, d.dish_type, d.price as dish_price
             FROM ingredient i
             LEFT JOIN dish d ON d.id = i.id_dish
             LIMIT ? OFFSET ?
+            ORDER BY i.id
         """;
 
         Connection connection = dbConnection.getDBConnection();
@@ -87,7 +88,7 @@ public class DataRetriever {
                 Ingredient ingredient = new Ingredient(
                         rs.getInt("ingredient_id"),
                         rs.getString("ingredient_name"),
-                        rs.getDouble("price"),
+                        rs.getDouble("ingredient_price"),
                         category,
                         getDisIngredient(rs)
                 );
@@ -149,15 +150,10 @@ public class DataRetriever {
 
     public Dish saveDish(Dish dishToSave) {
 
-        String insertSql = """
-        INSERT INTO dish(name, dish_type, price)
-        VALUES (?, ?::dish_type, ?)
-    """;
-
-        String updateSql = """
-        UPDATE dish
-        SET name = ?, dish_type = ?::dish_type, price = ?
-        WHERE id = ?
+        String upsertDishSql = """
+        INSERT INTO dish(id, name, dish_type, price)
+        VALUES (?, ?, ?::dish_type, ?) ON CONFLICT (id) DO UPDATE SET name = excluded.name, dish_type = excluded.dish_type, price = excluded.price
+        RETURNING id
     """;
 
         Connection conn = dbConnection.getDBConnection();
@@ -165,38 +161,23 @@ public class DataRetriever {
 
         try {
 
-            if (dishToSave.getId() > 0) {
-                try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
-                    ps.setString(1, dishToSave.getName());
-                    ps.setString(2, dishToSave.getDishType().name());
-                    ps.setObject(3, dishToSave.getPrice());
-                    ps.setInt(4, dishToSave.getId());
+                try (PreparedStatement ps = conn.prepareStatement(upsertDishSql)) {
+                    Integer idParam = dishToSave.getId() > 0 ? dishToSave.getId() : null;
+                    ps.setObject(1, idParam, INTEGER);
+                    ps.setString(2, dishToSave.getName());
+                    ps.setString(3, dishToSave.getDishType().name());
+                    ps.setObject(4, dishToSave.getPrice());
 
                     if (ps.executeUpdate() == 0) {
                         throw new RuntimeException("Dish not found (id=" + dishToSave.getId() + ")");
                     }
-                }
                 dishId = dishToSave.getId();
-            } else {
-                try (PreparedStatement ps = conn.prepareStatement(
-                        insertSql,
-                        Statement.RETURN_GENERATED_KEYS
-                )) {
-                    ps.setString(1, dishToSave.getName());
-                    ps.setString(2, dishToSave.getDishType().name());
-                    ps.setObject(3, dishToSave.getPrice());
-                    ps.executeUpdate();
-
-                    ResultSet rs = ps.getGeneratedKeys();
-                    rs.next();
-                    dishId = rs.getInt(1);
-                }
             }
 
             try (PreparedStatement ps = conn.prepareStatement(
                     "DELETE FROM ingredient WHERE id_dish = ?"
             )) {
-                ps.setInt(1, dishId);
+                ps.setInt(1, dishToSave.getId());
                 ps.executeUpdate();
             }
 
@@ -207,12 +188,12 @@ public class DataRetriever {
                     ps.setString(1, ing.getName());
                     ps.setString(2, ing.getCategory().name());
                     ps.setDouble(3, ing.getPrice());
-                    ps.setInt(4, dishId);
+                    ps.setInt(4, dishToSave.getId());
                     ps.executeUpdate();
                 }
             }
 
-            return findDishById(dishId);
+            return findDishById(dishToSave.getId());
 
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -320,7 +301,7 @@ public class DataRetriever {
         Dish dish = null;
         int dishId = rs.getInt("dish_id");
         String dishName = rs.getString("dish_name");
-        Double dishPrice = rs.getObject("price") != null ? rs.getDouble("price") : null;
+        Double dishPrice = rs.getObject("disih_price") != null ? rs.getDouble("price") : null;
         if (!rs.wasNull()) {
             String dt = rs.getString("dish_type");
             DishTypeEnum dishType = dt == null ? null : DishTypeEnum.valueOf(dt.toUpperCase());
