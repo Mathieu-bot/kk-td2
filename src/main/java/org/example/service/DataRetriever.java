@@ -90,7 +90,7 @@ public class DataRetriever {
                         rs.getString("ingredient_name"),
                         rs.getDouble("ingredient_price"),
                         category,
-                        getDisIngredient(rs)
+                        getDishIngredient(rs)
                 );
                 ingredients.add(ingredient);
             }
@@ -233,8 +233,8 @@ public class DataRetriever {
         List<Ingredient> ingredients = new ArrayList<Ingredient>();
         int offset = (page - 1 ) * size;
         StringBuilder sql = new StringBuilder("""
-            SELECT i.id AS ingredient_id, i.name AS ingredient_name, i.price, i.category,
-                   d.id AS dish_id, d.name AS dish_name, d.dish_type
+            SELECT i.id AS ingredient_id, i.name AS ingredient_name, i.price as ingredient_price, i.category,
+                   d.id AS dish_id, d.name AS dish_name, d.dish_type, d.price as dish_price
             FROM ingredient i
             LEFT JOIN dish d ON i.id_dish = d.id
             WHERE 1=1
@@ -282,7 +282,7 @@ public class DataRetriever {
                         rs.getString("ingredient_name"),
                         rs.getDouble("price"),
                         CategoryEnum.valueOf(rs.getString("category").toUpperCase()),
-                        getDisIngredient(rs)
+                        getDishIngredient(rs)
                 );
 
                 ingredients.add(ingredient);
@@ -297,11 +297,11 @@ public class DataRetriever {
         }
     }
 
-    private Dish getDisIngredient(ResultSet rs) throws SQLException {
+    private Dish getDishIngredient(ResultSet rs) throws SQLException {
         Dish dish = null;
         int dishId = rs.getInt("dish_id");
         String dishName = rs.getString("dish_name");
-        Double dishPrice = rs.getObject("disih_price") != null ? rs.getDouble("price") : null;
+        Double dishPrice = rs.getObject("dish_price") != null ? rs.getDouble("dish_price") : null;
         if (!rs.wasNull()) {
             String dt = rs.getString("dish_type");
             DishTypeEnum dishType = dt == null ? null : DishTypeEnum.valueOf(dt.toUpperCase());
