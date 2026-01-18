@@ -71,8 +71,8 @@ public class DataRetriever {
                    d.id AS dish_id, d.name AS dish_name, d.dish_type, d.price as dish_price
             FROM ingredient i
             LEFT JOIN dish d ON d.id = i.id_dish
-            LIMIT ? OFFSET ?
             ORDER BY i.id
+            LIMIT ? OFFSET ?
         """;
 
         Connection connection = dbConnection.getDBConnection();
@@ -152,8 +152,9 @@ public class DataRetriever {
 
         String upsertDishSql = """
         INSERT INTO dish(id, name, dish_type, price)
-        VALUES (?, ?, ?::dish_type, ?) ON CONFLICT (id) DO UPDATE SET name = excluded.name, dish_type = excluded.dish_type, price = excluded.price
-        RETURNING id
+        VALUES (?, ?, ?::dish_type, ?) ON CONFLICT (id) DO UPDATE 
+        SET name = excluded.name, dish_type = excluded.dish_type, price = excluded.price
+        RETURNING id, name, dish_type, price
     """;
 
         Connection conn = dbConnection.getDBConnection();
@@ -162,22 +163,24 @@ public class DataRetriever {
         try {
 
                 try (PreparedStatement ps = conn.prepareStatement(upsertDishSql)) {
-                    Integer idParam = dishToSave.getId() > 0 ? dishToSave.getId() : null;
+                    Integer idParam = dishToSave.getId() > 0 ? dishToSave.getId() : getNextDishId(conn);
                     ps.setObject(1, idParam, INTEGER);
                     ps.setString(2, dishToSave.getName());
                     ps.setString(3, dishToSave.getDishType().name());
                     ps.setObject(4, dishToSave.getPrice());
 
-                    if (ps.executeUpdate() == 0) {
+                    ResultSet rs = ps.executeQuery();
+                    if (rs.next()) {
+                        dishId = rs.getInt("id");
+                    } else {
                         throw new RuntimeException("Dish not found (id=" + dishToSave.getId() + ")");
                     }
-                dishId = dishToSave.getId();
             }
 
             try (PreparedStatement ps = conn.prepareStatement(
                     "DELETE FROM ingredient WHERE id_dish = ?"
             )) {
-                ps.setInt(1, dishToSave.getId());
+                ps.setInt(1, dishId);
                 ps.executeUpdate();
             }
 
@@ -188,12 +191,12 @@ public class DataRetriever {
                     ps.setString(1, ing.getName());
                     ps.setString(2, ing.getCategory().name());
                     ps.setDouble(3, ing.getPrice());
-                    ps.setInt(4, dishToSave.getId());
+                    ps.setInt(4, dishId);
                     ps.executeUpdate();
                 }
             }
 
-            return findDishById(dishToSave.getId());
+            return findDishById(dishId);
 
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -280,7 +283,7 @@ public class DataRetriever {
                 Ingredient ingredient = new Ingredient(
                         rs.getInt("ingredient_id"),
                         rs.getString("ingredient_name"),
-                        rs.getDouble("price"),
+                        rs.getDouble("ingredient_price"),
                         CategoryEnum.valueOf(rs.getString("category").toUpperCase()),
                         getDishIngredient(rs)
                 );
@@ -348,6 +351,17 @@ public class DataRetriever {
             ingredients.add(ingredient);
         }
         return ingredients;
+    }
+
+    private int getNextDishId(Connection conn) throws SQLException {
+        String sql = "SELECT nextval(pg_get_serial_sequence('dish', 'id'))";
+        try (PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        }
+        throw new RuntimeException("Unable to generate new id for dish");
     }
 
 }
