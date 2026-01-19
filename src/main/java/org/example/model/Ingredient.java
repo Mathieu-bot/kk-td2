@@ -8,6 +8,7 @@ public class Ingredient {
     private final double price;
     private final CategoryEnum category;
     private final Dish dish;
+    private Double quantity;
 
     public Ingredient(int id, String name, double price, CategoryEnum category, Dish dish) {
         this.id = id;
@@ -23,6 +24,8 @@ public class Ingredient {
     public CategoryEnum getCategory() { return category; }
     public Dish getDish() { return dish; }
     public String getDishName() { return dish == null ? null : dish.getName(); }
+    public Double getQuantity() { return quantity; }
+    public void setQuantity(Double quantity) { this.quantity = quantity; }
 
     @Override
     public String toString() {
