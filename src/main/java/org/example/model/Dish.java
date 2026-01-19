@@ -46,9 +46,17 @@ public class Dish {
     }
 
     public Double getDishCost() {
-        return ingredients.stream()
-                .mapToDouble(Ingredient::getPrice)
-                .sum();
+        double totalPrice = 0;
+        for (Ingredient ingredient : ingredients) {
+            Double quantity = ingredient.getQuantity();
+            if (quantity == null) {
+                throw new IllegalStateException(
+                        "Quantity not found, not possible to calculate dish cost."
+                );
+            }
+            totalPrice += ingredient.getPrice() * quantity;
+        }
+        return totalPrice;
     }
 
     public Double getGrossMargin() {
