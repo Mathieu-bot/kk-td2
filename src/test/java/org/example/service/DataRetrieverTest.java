@@ -31,11 +31,13 @@ class DataRetrieverTest {
         try (Connection conn = dbConnection.getDBConnection();
              Statement stmt = conn.createStatement()) {
 
+            stmt.execute("DELETE FROM dish_ingredient;");
             stmt.execute("DELETE FROM ingredient;");
             stmt.execute("DELETE FROM dish;");
 
             stmt.execute("SELECT setval(pg_get_serial_sequence('dish', 'id'), 1, false);");
             stmt.execute("SELECT setval(pg_get_serial_sequence('ingredient', 'id'), 1, false);");
+            stmt.execute("SELECT setval(pg_get_serial_sequence('dish_ingredient', 'id'), 1, false);");
 
             String dataSql = Files.readString(Paths.get("src/main/resources/sql/data.sql"));
 
@@ -46,8 +48,22 @@ class DataRetrieverTest {
                 }
             }
 
+            String newSchemaSql = Files.readString(Paths.get("src/main/resources/sql/new_schema.sql"));
+
+            for (String command : newSchemaSql.split(";")) {
+                String trimmed = command.trim();
+                if (trimmed.isEmpty()) {
+                    continue;
+                }
+                String upper = trimmed.toUpperCase();
+                if (upper.startsWith("INSERT ") || upper.startsWith("UPDATE ")) {
+                    stmt.execute(trimmed);
+                }
+            }
+
             stmt.execute("SELECT setval(pg_get_serial_sequence('dish', 'id'), (SELECT COALESCE(MAX(id),0) + 1 FROM dish), false);");
             stmt.execute("SELECT setval(pg_get_serial_sequence('ingredient', 'id'), (SELECT COALESCE(MAX(id),0) + 1 FROM ingredient), false);");
+            stmt.execute("SELECT setval(pg_get_serial_sequence('dish_ingredient', 'id'), (SELECT COALESCE(MAX(id),0) + 1 FROM dish_ingredient), false);");
         }
     }
 
@@ -158,5 +174,41 @@ class DataRetrieverTest {
         assertTrue(updated.getIngredients().stream().anyMatch(i -> i.getName().equals("Tomate")));
         assertTrue(updated.getIngredients().stream().anyMatch(i -> i.getName().equals("Oignon")));
         assertTrue(updated.getIngredients().stream().anyMatch(i -> i.getName().equals("Fromage")));
+    }
+
+    @Test
+    void testGetDishCost_expectedValues() {
+        Dish saladeFraiche = dataRetriever.findDishById(1);
+        assertEquals(250.00, saladeFraiche.getDishCost(), 0.001);
+
+        Dish pouletGrille = dataRetriever.findDishById(2);
+        assertEquals(4500.00, pouletGrille.getDishCost(), 0.001);
+
+        Dish rizAuxLegumes = dataRetriever.findDishById(3);
+        assertEquals(0.00, rizAuxLegumes.getDishCost(), 0.001);
+
+        Dish gateauChocolat = dataRetriever.findDishById(4);
+        assertEquals(1400.00, gateauChocolat.getDishCost(), 0.001);
+
+        Dish saladeFruits = dataRetriever.findDishById(5);
+        assertEquals(0.00, saladeFruits.getDishCost(), 0.001);
+    }
+
+    @Test
+    void testGetGrossMargin_expectedValues() {
+        Dish saladeFraiche = dataRetriever.findDishById(1);
+        assertEquals(3250.00, saladeFraiche.getGrossMargin(), 0.001);
+
+        Dish pouletGrille = dataRetriever.findDishById(2);
+        assertEquals(7500.00, pouletGrille.getGrossMargin(), 0.001);
+
+        Dish rizAuxLegumes = dataRetriever.findDishById(3);
+        assertThrows(IllegalStateException.class, rizAuxLegumes::getGrossMargin);
+
+        Dish gateauChocolat = dataRetriever.findDishById(4);
+        assertEquals(6600.00, gateauChocolat.getGrossMargin(), 0.001);
+
+        Dish saladeFruits = dataRetriever.findDishById(5);
+        assertThrows(IllegalStateException.class, saladeFruits::getGrossMargin);
     }
 }
