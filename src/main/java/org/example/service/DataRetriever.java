@@ -49,7 +49,12 @@ public class DataRetriever {
 
     private List<Ingredient> findIngredientsByDishId(int dishId) {
         List<Ingredient> ingredients = new ArrayList<>();
-        String sql = "SELECT id, name, price, category FROM ingredient WHERE id_dish = ?";
+        String sql = """
+            SELECT i.id, i.name, i.price, i.category, di.quantity_required
+            FROM dish_ingredient di
+            JOIN ingredient i ON i.id = di.id_ingredient
+            WHERE di.id_dish = ?
+        """;
         Connection connection = dbConnection.getDBConnection();
 
         try {
@@ -347,6 +352,8 @@ public class DataRetriever {
                     CategoryEnum.valueOf(resultSet.getString("category")),
                     null
             );
+
+            ingredient.setQuantity(resultSet.getDouble("quantity_required"));
 
             ingredients.add(ingredient);
         }
