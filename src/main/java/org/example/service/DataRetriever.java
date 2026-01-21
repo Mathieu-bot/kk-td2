@@ -49,9 +49,31 @@ public class DataRetriever {
 
     private List<Ingredient> findIngredientsByDishId(int dishId) {
         List<Ingredient> ingredients = new ArrayList<>();
+        for (DishIngredient di : findDishIngredientsByDishId(dishId)) {
+            Ingredient ingredient = di.getIngredient();
+            ingredient.setQuantity(di.getQuantity());
+            ingredients.add(ingredient);
+        }
+        return ingredients;
+    }
+
+    public List<DishIngredient> findDishIngredientsByDishId(int dishId) {
+        List<DishIngredient> result = new ArrayList<>();
         String sql = """
-            SELECT i.id, i.name, i.price, i.category, di.quantity_required
+            SELECT di.id_dish,
+                   di.id_ingredient,
+                   di.quantity_required,
+                   di.unit,
+                   d.id AS dish_id,
+                   d.name AS dish_name,
+                   d.dish_type,
+                   d.price AS dish_price,
+                   i.id AS ingredient_id,
+                   i.name AS ingredient_name,
+                   i.price AS ingredient_price,
+                   i.category
             FROM dish_ingredient di
+            JOIN dish d ON d.id = di.id_dish
             JOIN ingredient i ON i.id = di.id_ingredient
             WHERE di.id_dish = ?
         """;
@@ -60,7 +82,30 @@ public class DataRetriever {
         try {
             PreparedStatement ps = connection.prepareStatement(sql);
             ps.setInt(1, dishId);
-            return getIngredients(ingredients, ps);
+            ResultSet rs = ps.executeQuery();
+
+            while (rs.next()) {
+                Dish dish = new Dish(
+                        rs.getInt("dish_id"),
+                        rs.getString("dish_name"),
+                        DishTypeEnum.valueOf(rs.getString("dish_type")),
+                        rs.getObject("dish_price") != null ? rs.getDouble("dish_price") : null
+                );
+
+                Ingredient ingredient = new Ingredient(
+                        rs.getInt("ingredient_id"),
+                        rs.getString("ingredient_name"),
+                        rs.getDouble("ingredient_price"),
+                        CategoryEnum.valueOf(rs.getString("category")),
+                        dish
+                );
+
+                double quantity = rs.getDouble("quantity_required");
+                UnitType unit = UnitType.valueOf(rs.getString("unit"));
+
+                result.add(new DishIngredient(dish, ingredient, quantity, unit));
+            }
+            return result;
         } catch (SQLException e) {
             throw new RuntimeException(e);
         } finally {
@@ -194,7 +239,7 @@ public class DataRetriever {
             for (Ingredient ing : dishToSave.getIngredients()) {
                 int ingredientId = findOrCreateIngredient(conn, ing);
                 double quantity = ing.getQuantity() == null ? 1.0 : ing.getQuantity();
-                String unit = "PCS";
+                UnitType unit = UnitType.PCS;
 
                 try (PreparedStatement ps = conn.prepareStatement(
                         "INSERT INTO dish_ingredient(id_dish, id_ingredient, quantity_required, unit) VALUES (?, ?, ?, ?::unit_type)"
@@ -202,7 +247,7 @@ public class DataRetriever {
                     ps.setInt(1, dishId);
                     ps.setInt(2, ingredientId);
                     ps.setDouble(3, quantity);
-                    ps.setString(4, unit);
+                    ps.setString(4, unit.name());
                     ps.executeUpdate();
                 }
             }
@@ -382,25 +427,6 @@ public class DataRetriever {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private List<Ingredient> getIngredients(List<Ingredient> ingredients, PreparedStatement ps) throws SQLException {
-        ResultSet resultSet = ps.executeQuery();
-
-        while (resultSet.next()) {
-            Ingredient ingredient = new Ingredient(
-                    resultSet.getInt("id"),
-                    resultSet.getString("name"),
-                    resultSet.getDouble("price"),
-                    CategoryEnum.valueOf(resultSet.getString("category")),
-                    null
-            );
-
-            ingredient.setQuantity(resultSet.getDouble("quantity_required"));
-
-            ingredients.add(ingredient);
-        }
-        return ingredients;
     }
 
     private int getNextDishId(Connection conn) throws SQLException {
