@@ -1,3 +1,6 @@
+ALTER TABLE ingredient
+    DROP COLUMN IF EXISTS id_dish;
+
 CREATE TYPE unit_type AS ENUM ('PCS', 'KG', 'L');
 
 CREATE TABLE dish_ingredient (
