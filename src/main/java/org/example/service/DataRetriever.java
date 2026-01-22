@@ -284,7 +284,7 @@ public class DataRetriever {
             for (Ingredient ing : dishToSave.getIngredients()) {
                 int ingredientId = findOrCreateIngredient(conn, ing);
                 double quantity = ing.getQuantity() == null ? 1.0 : ing.getQuantity();
-                Unit unit = Unit.PCS;
+                Unit unit = Unit.KG;
 
                 try (PreparedStatement ps = conn.prepareStatement(
                         "INSERT INTO dish_ingredient(id_dish, id_ingredient, quantity_required, unit) VALUES (?, ?, ?, ?::unit_type)"
