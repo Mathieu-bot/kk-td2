@@ -217,6 +217,9 @@ public class DataRetriever {
                 RETURNING id, name, price, category
                 """;
 
+            Ingredient savedIngredient = null;
+            int ingredientId;
+
             try (PreparedStatement ps = conn.prepareStatement(upsertSql)) {
                 int idParam = toSave.getId() > 0 ? toSave.getId() : getNextIngredientId(conn);
                 ps.setInt(1, idParam);
@@ -226,17 +229,58 @@ public class DataRetriever {
 
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
-                        return new Ingredient(
-                                rs.getInt("id"),
+                        ingredientId = rs.getInt("id");
+                        savedIngredient = new Ingredient(
+                                ingredientId,
                                 rs.getString("name"),
                                 rs.getDouble("price"),
                                 CategoryEnum.valueOf(rs.getString("category").toUpperCase())
                         );
+                    } else {
+                        throw new RuntimeException("Failed to save ingredient: " + toSave.getName());
                     }
                 }
             }
 
-            throw new RuntimeException("Failed to save ingredient: " + toSave.getName());
+            if (toSave.getStockMovementList() != null && !toSave.getStockMovementList().isEmpty()) {
+                for (StockMovement movement : toSave.getStockMovementList()) {
+                    StockValue value = movement.getValue();
+
+                    if (movement.getId() > 0) {
+                        String insertWithId = """
+                            INSERT INTO stock_movement(id, id_ingredient, quantity, type, unit, creation_datetime)
+                            VALUES (?, ?, ?, ?::movement_type, ?::unit_type, ?)
+                            ON CONFLICT (id) DO NOTHING
+                            """;
+
+                        try (PreparedStatement ps = conn.prepareStatement(insertWithId)) {
+                            ps.setInt(1, movement.getId());
+                            ps.setInt(2, ingredientId);
+                            ps.setDouble(3, value.getQuantity());
+                            ps.setString(4, movement.getType().name());
+                            ps.setString(5, value.getUnit().name());
+                            ps.setTimestamp(6, Timestamp.from(movement.getCreationDateTime()));
+                            ps.executeUpdate();
+                        }
+                    } else {
+                        String insertWithoutId = """
+                            INSERT INTO stock_movement(id_ingredient, quantity, type, unit, creation_datetime)
+                            VALUES (?, ?, ?::movement_type, ?::unit_type, ?)
+                            """;
+
+                        try (PreparedStatement ps = conn.prepareStatement(insertWithoutId)) {
+                            ps.setInt(1, ingredientId);
+                            ps.setDouble(2, value.getQuantity());
+                            ps.setString(3, movement.getType().name());
+                            ps.setString(4, value.getUnit().name());
+                            ps.setTimestamp(5, Timestamp.from(movement.getCreationDateTime()));
+                            ps.executeUpdate();
+                        }
+                    }
+                }
+            }
+
+            return savedIngredient;
 
         } catch (SQLException e) {
             throw new RuntimeException(e);
