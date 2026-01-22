@@ -366,7 +366,69 @@ public class DataRetriever {
     }
 
     public Order findOrderByReference(String reference) {
-        throw new UnsupportedOperationException("Not supported yet.");
+        if (reference == null || reference.isBlank()) {
+            throw new IllegalArgumentException("reference must not be null or blank");
+        }
+
+        Connection conn = dbConnection.getDBConnection();
+
+        try {
+            String findOrderSql = """
+                    SELECT id, reference, creation_datetime
+                    FROM "order"
+                    WHERE reference = ?
+                    """;
+
+            int orderId;
+            String savedReference;
+            Instant creationDateTime;
+
+            try (PreparedStatement ps = conn.prepareStatement(findOrderSql)) {
+                ps.setString(1, reference);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        throw new RuntimeException("Order not found (reference=" + reference + ")");
+                    }
+                    orderId = rs.getInt("id");
+                    savedReference = rs.getString("reference");
+                    creationDateTime = rs.getTimestamp("creation_datetime").toInstant();
+                }
+            }
+
+            String findLinesSql = """
+                    SELECT do.id            AS dish_order_id,
+                           do.id_dish       AS id_dish,
+                           do.quantity      AS quantity,
+                           d.id             AS dish_id,
+                           d.name           AS dish_name,
+                           d.dish_type      AS dish_type,
+                           d.price          AS dish_price
+                    FROM dish_order do
+                    JOIN dish d ON d.id = do.id_dish
+                    WHERE do.id_order = ?
+                    """;
+
+            List<DishOrder> dishOrders = new ArrayList<>();
+
+            try (PreparedStatement ps = conn.prepareStatement(findLinesSql)) {
+                ps.setInt(1, orderId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        Dish dish = mapDish(rs, "dish_id", "dish_name", "dish_type", "dish_price");
+                        int dishOrderId = rs.getInt("dish_order_id");
+                        int quantity = rs.getInt("quantity");
+                        dishOrders.add(new DishOrder(dishOrderId, dish, quantity));
+                    }
+                }
+            }
+
+            return new Order(orderId, savedReference, creationDateTime, dishOrders);
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } finally {
+            dbConnection.close(conn);
+        }
     }
 
     private List<DishOrder> validateOrder(Order orderToSave) {
