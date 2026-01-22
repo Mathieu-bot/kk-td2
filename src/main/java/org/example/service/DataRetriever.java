@@ -197,6 +197,54 @@ public class DataRetriever {
         }
     }
 
+    public Ingredient saveIngredient(Ingredient toSave) {
+        Connection conn = dbConnection.getDBConnection();
+
+        try {
+            boolean isUpdate = toSave.getId() > 0;
+
+            if (!isUpdate && ingredientExists(conn, toSave.getName())) {
+                throw new RuntimeException("Ingredient already exists in database: " + toSave.getName());
+            }
+
+            String upsertSql = """
+                INSERT INTO ingredient(id, name, category, price)
+                VALUES (?, ?, ?::ingredient_category, ?)
+                ON CONFLICT (id) DO UPDATE
+                SET name = EXCLUDED.name,
+                    category = EXCLUDED.category,
+                    price = EXCLUDED.price
+                RETURNING id, name, price, category
+                """;
+
+            try (PreparedStatement ps = conn.prepareStatement(upsertSql)) {
+                int idParam = toSave.getId() > 0 ? toSave.getId() : getNextIngredientId(conn);
+                ps.setInt(1, idParam);
+                ps.setString(2, toSave.getName());
+                ps.setString(3, toSave.getCategory().name());
+                ps.setDouble(4, toSave.getPrice());
+
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return new Ingredient(
+                                rs.getInt("id"),
+                                rs.getString("name"),
+                                rs.getDouble("price"),
+                                CategoryEnum.valueOf(rs.getString("category").toUpperCase())
+                        );
+                    }
+                }
+            }
+
+            throw new RuntimeException("Failed to save ingredient: " + toSave.getName());
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } finally {
+            dbConnection.close(conn);
+        }
+    }
+
     public Dish saveDish(Dish dishToSave) {
 
         String upsertDishSql = """
@@ -420,6 +468,17 @@ public class DataRetriever {
             }
         }
         throw new RuntimeException("Unable to generate new id for dish");
+    }
+
+    private int getNextIngredientId(Connection conn) throws SQLException {
+        String sql = "SELECT nextval(pg_get_serial_sequence('ingredient', 'id'))";
+        try (PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        }
+        throw new RuntimeException("Unable to generate new id for ingredient");
     }
 
 }
