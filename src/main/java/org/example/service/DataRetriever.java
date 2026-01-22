@@ -96,12 +96,11 @@ public class DataRetriever {
                         rs.getInt("ingredient_id"),
                         rs.getString("ingredient_name"),
                         rs.getDouble("ingredient_price"),
-                        CategoryEnum.valueOf(rs.getString("category")),
-                        dish
+                        CategoryEnum.valueOf(rs.getString("category"))
                 );
 
                 double quantity = rs.getDouble("quantity_required");
-                UnitType unit = UnitType.valueOf(rs.getString("unit"));
+                Unit unit = Unit.valueOf(rs.getString("unit"));
 
                 result.add(new DishIngredient(dish, ingredient, quantity, unit));
             }
@@ -137,13 +136,11 @@ public class DataRetriever {
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 CategoryEnum category = CategoryEnum.valueOf(rs.getString("category").toUpperCase());
-                Dish dish = getDishIngredient(rs);
                 Ingredient ingredient = new Ingredient(
                         rs.getInt("ingredient_id"),
                         rs.getString("ingredient_name"),
                         rs.getDouble("ingredient_price"),
-                        category,
-                        dish
+                        category
                 );
 
                 if (rs.getObject("quantity_required") != null) {
@@ -239,7 +236,7 @@ public class DataRetriever {
             for (Ingredient ing : dishToSave.getIngredients()) {
                 int ingredientId = findOrCreateIngredient(conn, ing);
                 double quantity = ing.getQuantity() == null ? 1.0 : ing.getQuantity();
-                UnitType unit = UnitType.PCS;
+                Unit unit = Unit.PCS;
 
                 try (PreparedStatement ps = conn.prepareStatement(
                         "INSERT INTO dish_ingredient(id_dish, id_ingredient, quantity_required, unit) VALUES (?, ?, ?, ?::unit_type)"
@@ -344,13 +341,11 @@ public class DataRetriever {
 
             while (rs.next()) {
 
-                Dish dish = getDishIngredient(rs);
                 Ingredient ingredient = new Ingredient(
                         rs.getInt("ingredient_id"),
                         rs.getString("ingredient_name"),
                         rs.getDouble("ingredient_price"),
-                        CategoryEnum.valueOf(rs.getString("category").toUpperCase()),
-                        dish
+                        CategoryEnum.valueOf(rs.getString("category").toUpperCase())
                 );
 
                 if (rs.getObject("quantity_required") != null) {
@@ -367,19 +362,6 @@ public class DataRetriever {
         } finally {
             dbConnection.close(connection);
         }
-    }
-
-    private Dish getDishIngredient(ResultSet rs) throws SQLException {
-        Dish dish = null;
-        int dishId = rs.getInt("dish_id");
-        String dishName = rs.getString("dish_name");
-        Double dishPrice = rs.getObject("dish_price") != null ? rs.getDouble("dish_price") : null;
-        if (!rs.wasNull()) {
-            String dt = rs.getString("dish_type");
-            DishTypeEnum dishType = dt == null ? null : DishTypeEnum.valueOf(dt.toUpperCase());
-            dish = new Dish(dishId, dishName, dishType, dishPrice);
-        }
-        return dish;
     }
 
     private void checkDuplicatesInList(List<Ingredient> ingredients) {
