@@ -382,14 +382,7 @@ public class DataRetriever {
     }
 
     public Order saveOrder(Order orderToSave) {
-        if (orderToSave == null) {
-            throw new IllegalArgumentException("orderToSave must not be null");
-        }
-
-        List<DishOrder> dishOrders = orderToSave.getDishOrders();
-        if (dishOrders == null || dishOrders.isEmpty()) {
-            throw new IllegalArgumentException("Order must contain at least one DishOrder");
-        }
+        List<DishOrder> dishOrders = validateOrder(orderToSave);
 
         Connection conn = dbConnection.getDBConnection();
 
@@ -400,114 +393,14 @@ public class DataRetriever {
                     ? orderToSave.getCreationDateTime()
                     : Instant.now();
 
-            Map<Integer, Integer> dishQuantities = new HashMap<>();
-            for (DishOrder dishOrder : dishOrders) {
-                if (dishOrder == null || dishOrder.getDish() == null) {
-                    throw new IllegalArgumentException("DishOrder and its Dish must not be null");
-                }
+            Map<Integer, Integer> dishQuantities = aggregateDishQuantities(dishOrders);
+            Map<Integer, Double> requiredQuantities = computeRequiredQuantities(conn, dishQuantities);
+            checkStockOrThrow(conn, requiredQuantities, checkInstant);
 
-                int dishId = dishOrder.getDish().getId();
-                if (dishId <= 0) {
-                    throw new IllegalArgumentException("Dish id must be positive to save order");
-                }
-
-                dishQuantities.merge(dishId, dishOrder.getQuantity(), Integer::sum);
-            }
-
-            Map<Integer, Double> requiredQuantities = new HashMap<>();
-            String sql = "SELECT id_ingredient, quantity_required FROM dish_ingredient WHERE id_dish = ?";
-
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                for (Map.Entry<Integer, Integer> entry : dishQuantities.entrySet()) {
-                    int dishId = entry.getKey();
-                    int totalDishQuantity = entry.getValue();
-
-                    ps.setInt(1, dishId);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        while (rs.next()) {
-                            int ingredientId = rs.getInt("id_ingredient");
-                            double quantityPerDish = rs.getDouble("quantity_required");
-                            double totalRequiredForDish = quantityPerDish * totalDishQuantity;
-
-                            requiredQuantities.merge(ingredientId, totalRequiredForDish, Double::sum);
-                        }
-                    }
-                }
-            }
-
-            for (Map.Entry<Integer, Double> entry : requiredQuantities.entrySet()) {
-                int ingredientId = entry.getKey();
-                double requiredQuantity = entry.getValue();
-
-                Ingredient ingredient = loadIngredientWithMovements(conn, ingredientId);
-                double availableQuantity = ingredient.getStockValueAt(checkInstant).getQuantity();
-
-                if (availableQuantity < requiredQuantity) {
-                    throw new RuntimeException("Not enough stock for ingredient: " + ingredient.getName());
-                }
-            }
-
-            String upsertOrderSql = """
-                    INSERT INTO "order"(id, reference, creation_datetime)
-                    VALUES (?, ?, ?)
-                    ON CONFLICT (id) DO UPDATE
-                    SET reference = EXCLUDED.reference,
-                        creation_datetime = EXCLUDED.creation_datetime
-                    RETURNING id, reference, creation_datetime
-                    """;
-
-            int generatedOrderId;
-            String savedReference;
-            Instant savedCreationDateTime;
-
-            try (PreparedStatement ps = conn.prepareStatement(upsertOrderSql)) {
-                int idParam = orderToSave.getId() > 0 ? orderToSave.getId() : getNextOrderId(conn);
-                String reference = orderToSave.getReference();
-                Instant creationDateTime = orderToSave.getCreationDateTime() != null
-                        ? orderToSave.getCreationDateTime()
-                        : Instant.now();
-
-                ps.setInt(1, idParam);
-                ps.setString(2, reference);
-                ps.setTimestamp(3, Timestamp.from(creationDateTime));
-
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (!rs.next()) {
-                        throw new RuntimeException("Failed to save order");
-                    }
-                    generatedOrderId = rs.getInt("id");
-                    savedReference = rs.getString("reference");
-                    savedCreationDateTime = rs.getTimestamp("creation_datetime").toInstant();
-                }
-            }
-
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM dish_order WHERE id_order = ?"
-            )) {
-                ps.setInt(1, generatedOrderId);
-                ps.executeUpdate();
-            }
-
-            String insertDishOrderSql = """
-                    INSERT INTO dish_order(id_order, id_dish, quantity)
-                    VALUES (?, ?, ?)
-                    """;
-
-            try (PreparedStatement ps = conn.prepareStatement(insertDishOrderSql)) {
-                for (DishOrder dishOrder : dishOrders) {
-                    int dishId = dishOrder.getDish().getId();
-                    ps.setInt(1, generatedOrderId);
-                    ps.setInt(2, dishId);
-                    ps.setInt(3, dishOrder.getQuantity());
-                    ps.addBatch();
-                }
-                ps.executeBatch();
-            }
+            Order savedOrder = upsertOrderAndLines(conn, orderToSave, dishOrders);
 
             conn.commit();
-            conn.setAutoCommit(true);
-
-            return new Order(generatedOrderId, savedReference, savedCreationDateTime, dishOrders);
+            return savedOrder;
 
         } catch (SQLException e) {
             try {
@@ -527,6 +420,143 @@ public class DataRetriever {
 
     public Order findOrderByReference(String reference) {
         throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    private List<DishOrder> validateOrder(Order orderToSave) {
+        if (orderToSave == null) {
+            throw new IllegalArgumentException("orderToSave must not be null");
+        }
+
+        List<DishOrder> dishOrders = orderToSave.getDishOrders();
+        if (dishOrders == null || dishOrders.isEmpty()) {
+            throw new IllegalArgumentException("Order must contain at least one DishOrder");
+        }
+        return dishOrders;
+    }
+
+    private Map<Integer, Integer> aggregateDishQuantities(List<DishOrder> dishOrders) {
+        Map<Integer, Integer> dishQuantities = new HashMap<>();
+
+        for (DishOrder dishOrder : dishOrders) {
+            if (dishOrder == null || dishOrder.getDish() == null) {
+                throw new IllegalArgumentException("DishOrder and its Dish must not be null");
+            }
+
+            int dishId = dishOrder.getDish().getId();
+            if (dishId <= 0) {
+                throw new IllegalArgumentException("Dish id must be positive to save order");
+            }
+
+            dishQuantities.merge(dishId, dishOrder.getQuantity(), Integer::sum);
+        }
+
+        return dishQuantities;
+    }
+
+    private Map<Integer, Double> computeRequiredQuantities(Connection conn,
+                                                           Map<Integer, Integer> dishQuantities) throws SQLException {
+        Map<Integer, Double> requiredQuantities = new HashMap<>();
+        String sql = "SELECT id_ingredient, quantity_required FROM dish_ingredient WHERE id_dish = ?";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (Map.Entry<Integer, Integer> entry : dishQuantities.entrySet()) {
+                int dishId = entry.getKey();
+                int totalDishQuantity = entry.getValue();
+
+                ps.setInt(1, dishId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        int ingredientId = rs.getInt("id_ingredient");
+                        double quantityPerDish = rs.getDouble("quantity_required");
+                        double totalRequiredForDish = quantityPerDish * totalDishQuantity;
+
+                        requiredQuantities.merge(ingredientId, totalRequiredForDish, Double::sum);
+                    }
+                }
+            }
+        }
+
+        return requiredQuantities;
+    }
+
+    private void checkStockOrThrow(Connection conn,
+                                   Map<Integer, Double> requiredQuantities,
+                                   Instant checkInstant) throws SQLException {
+        for (Map.Entry<Integer, Double> entry : requiredQuantities.entrySet()) {
+            int ingredientId = entry.getKey();
+            double requiredQuantity = entry.getValue();
+
+            Ingredient ingredient = loadIngredientWithMovements(conn, ingredientId);
+            double availableQuantity = ingredient.getStockValueAt(checkInstant).getQuantity();
+
+            if (availableQuantity < requiredQuantity) {
+                throw new RuntimeException("Not enough stock for ingredient: " + ingredient.getName());
+            }
+        }
+    }
+
+    private Order upsertOrderAndLines(Connection conn,
+                                      Order orderToSave,
+                                      List<DishOrder> dishOrders) throws SQLException {
+
+        String upsertOrderSql = """
+                INSERT INTO "order"(id, reference, creation_datetime)
+                VALUES (?, ?, ?)
+                ON CONFLICT (id) DO UPDATE
+                SET reference = EXCLUDED.reference,
+                    creation_datetime = EXCLUDED.creation_datetime
+                RETURNING id, reference, creation_datetime
+                """;
+
+        int generatedOrderId;
+        String savedReference;
+        Instant savedCreationDateTime;
+
+        try (PreparedStatement ps = conn.prepareStatement(upsertOrderSql)) {
+            int idParam = orderToSave.getId() > 0 ? orderToSave.getId() : getNextOrderId(conn);
+            String reference = orderToSave.getReference();
+            Instant creationDateTime = orderToSave.getCreationDateTime() != null
+                    ? orderToSave.getCreationDateTime()
+                    : Instant.now();
+
+            ps.setInt(1, idParam);
+            ps.setString(2, reference);
+            ps.setTimestamp(3, Timestamp.from(creationDateTime));
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new RuntimeException("Failed to save order");
+                }
+                generatedOrderId = rs.getInt("id");
+                savedReference = rs.getString("reference");
+                savedCreationDateTime = rs.getTimestamp("creation_datetime").toInstant();
+            }
+        }
+
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM dish_order WHERE id_order = ?"
+        )) {
+            ps.setInt(1, generatedOrderId);
+            ps.executeUpdate();
+        }
+
+        String insertDishOrderSql = """
+                INSERT INTO dish_order(id_order, id_dish, quantity)
+                VALUES (?, ?, ?)
+                """;
+
+        try (PreparedStatement ps = conn.prepareStatement(insertDishOrderSql)) {
+            for (DishOrder dishOrder : dishOrders) {
+                int dishId = dishOrder.getDish().getId();
+                ps.setInt(1, generatedOrderId);
+                ps.setInt(2, dishId);
+                ps.setInt(3, dishOrder.getQuantity());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+
+        return new Order(generatedOrderId, savedReference, savedCreationDateTime, dishOrders);
     }
 
     private Ingredient loadIngredientWithMovements(Connection conn, int ingredientId) throws SQLException {
