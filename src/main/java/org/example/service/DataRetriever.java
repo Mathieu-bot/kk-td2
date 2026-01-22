@@ -199,7 +199,7 @@ public class DataRetriever {
         try {
 
                 try (PreparedStatement ps = conn.prepareStatement(upsertDishSql)) {
-                    Integer idParam = dishToSave.getId() > 0 ? dishToSave.getId() : getNextDishId(conn);
+                    Integer idParam = dishToSave.getId() > 0 ? dishToSave.getId() : getNextId(conn, "dish", "Unable to generate new id for dish");
                     ps.setObject(1, idParam, INTEGER);
                     ps.setString(2, dishToSave.getName());
                     ps.setString(3, dishToSave.getDishType().name());
@@ -522,7 +522,7 @@ public class DataRetriever {
         Instant savedCreationDateTime;
 
         try (PreparedStatement ps = conn.prepareStatement(upsertOrderSql)) {
-            int idParam = orderToSave.getId() > 0 ? orderToSave.getId() : getNextOrderId(conn);
+            int idParam = orderToSave.getId() > 0 ? orderToSave.getId() : getNextId(conn, "\"order\"", "Unable to generate new id for order");
             String reference = orderToSave.getReference();
             Instant creationDateTime = orderToSave.getCreationDateTime() != null
                     ? orderToSave.getCreationDateTime()
@@ -673,37 +673,15 @@ public class DataRetriever {
         }
     }
 
-    private int getNextOrderId(Connection conn) throws SQLException {
-        String sql = "SELECT nextval(pg_get_serial_sequence('\"order\"', 'id'))";
+    private int getNextId(Connection conn, String tableRegclassLiteral, String errorMessage) throws SQLException {
+        String sql = "SELECT nextval(pg_get_serial_sequence('" + tableRegclassLiteral + "', 'id'))";
         try (PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             if (rs.next()) {
                 return rs.getInt(1);
             }
         }
-        throw new RuntimeException("Unable to generate new id for order");
-    }
-
-    private int getNextDishId(Connection conn) throws SQLException {
-        String sql = "SELECT nextval(pg_get_serial_sequence('dish', 'id'))";
-        try (PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            if (rs.next()) {
-                return rs.getInt(1);
-            }
-        }
-        throw new RuntimeException("Unable to generate new id for dish");
-    }
-
-    private int getNextIngredientId(Connection conn) throws SQLException {
-        String sql = "SELECT nextval(pg_get_serial_sequence('ingredient', 'id'))";
-        try (PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            if (rs.next()) {
-                return rs.getInt(1);
-            }
-        }
-        throw new RuntimeException("Unable to generate new id for ingredient");
+        throw new RuntimeException(errorMessage);
     }
 
     private Dish mapDish(ResultSet rs,
@@ -758,7 +736,7 @@ public class DataRetriever {
                 """;
 
         try (PreparedStatement ps = conn.prepareStatement(upsertSql)) {
-            int idParam = toSave.getId() > 0 ? toSave.getId() : getNextIngredientId(conn);
+            int idParam = toSave.getId() > 0 ? toSave.getId() : getNextId(conn, "ingredient", "Unable to generate new id for ingredient");
             ps.setInt(1, idParam);
             ps.setString(2, toSave.getName());
             ps.setString(3, toSave.getCategory().name());
