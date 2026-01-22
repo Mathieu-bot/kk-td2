@@ -2,5 +2,7 @@
 <project version="4">
   <component name="DataSourcePerFileMappings">
     <file url="file://$PROJECT_DIR$/src/main/java/org/example/service/DataRetriever.java" value="bf9032b1-da6f-45fe-9d8c-4e18db8450f9" />
+    <file url="file://$PROJECT_DIR$/src/main/resources/sql/add_stock_movement_schema.sql" value="bf9032b1-da6f-45fe-9d8c-4e18db8450f9" />
+    <file url="file://$PROJECT_DIR$/src/main/resources/sql/new_schema.sql" value="bf9032b1-da6f-45fe-9d8c-4e18db8450f9" />
   </component>
 </project>
