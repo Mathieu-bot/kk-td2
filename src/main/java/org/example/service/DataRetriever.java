@@ -32,12 +32,7 @@ public class DataRetriever {
             ResultSet rs = ps.executeQuery();
 
             if (rs.next()) {
-                Dish dish = new Dish(
-                        rs.getInt("id"),
-                        rs.getString("name"),
-                        DishTypeEnum.valueOf(rs.getString("dish_type")),
-                        rs.getObject("price") != null ? rs.getDouble("price") : null
-                );
+                Dish dish = mapDish(rs, "id", "name", "dish_type", "price");
 
                 dish.setIngredients(findIngredientsByDishId(dish.getId()));
                 return dish;
@@ -78,19 +73,9 @@ public class DataRetriever {
             ResultSet rs = ps.executeQuery();
 
             while (rs.next()) {
-                Dish dish = new Dish(
-                        rs.getInt("dish_id"),
-                        rs.getString("dish_name"),
-                        DishTypeEnum.valueOf(rs.getString("dish_type")),
-                        rs.getObject("dish_price") != null ? rs.getDouble("dish_price") : null
-                );
+                Dish dish = mapDish(rs, "dish_id", "dish_name", "dish_type", "dish_price");
 
-                Ingredient ingredient = new Ingredient(
-                        rs.getInt("ingredient_id"),
-                        rs.getString("ingredient_name"),
-                        rs.getDouble("ingredient_price"),
-                        CategoryEnum.valueOf(rs.getString("category"))
-                );
+                Ingredient ingredient = mapIngredient(rs, "ingredient_id", "ingredient_name", "ingredient_price", "category");
 
                 double quantity = rs.getDouble("quantity_required");
                 Unit unit = Unit.valueOf(rs.getString("unit"));
@@ -106,7 +91,6 @@ public class DataRetriever {
     }
 
     public List<Ingredient> findIngredients(int page, int size) {
-        List<Ingredient> ingredients = new ArrayList<>();
         int offset = (page - 1) * size;
         String sql = """
             SELECT i.id AS ingredient_id, i.name AS ingredient_name, i.price as ingredient_price, i.category,
@@ -127,21 +111,7 @@ public class DataRetriever {
             ps.setInt(2, offset);
 
             ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                CategoryEnum category = CategoryEnum.valueOf(rs.getString("category").toUpperCase());
-                Ingredient ingredient = new Ingredient(
-                        rs.getInt("ingredient_id"),
-                        rs.getString("ingredient_name"),
-                        rs.getDouble("ingredient_price"),
-                        category
-                );
-
-                if (rs.getObject("quantity_required") != null) {
-                    ingredient.setQuantity(rs.getDouble("quantity_required"));
-                }
-                ingredients.add(ingredient);
-            }
-            return ingredients;
+            return mapIngredientsWithOptionalQuantity(rs);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         } finally {
@@ -250,20 +220,20 @@ public class DataRetriever {
                 ps.executeUpdate();
             }
 
-            for (Ingredient ing : dishToSave.getIngredients()) {
-                int ingredientId = findOrCreateIngredient(conn, ing);
-                double quantity = ing.getQuantity() == null ? 1.0 : ing.getQuantity();
-                Unit unit = Unit.KG;
+            String insertDishIngredientSql = "INSERT INTO dish_ingredient(id_dish, id_ingredient, quantity_required, unit) VALUES (?, ?, ?, ?::unit_type)";
+            try (PreparedStatement ps = conn.prepareStatement(insertDishIngredientSql)) {
+                for (Ingredient ing : dishToSave.getIngredients()) {
+                    int ingredientId = findOrCreateIngredient(conn, ing);
+                    double quantity = ing.getQuantity() == null ? 1.0 : ing.getQuantity();
+                    Unit unit = Unit.KG;
 
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "INSERT INTO dish_ingredient(id_dish, id_ingredient, quantity_required, unit) VALUES (?, ?, ?, ?::unit_type)"
-                )) {
                     ps.setInt(1, dishId);
                     ps.setInt(2, ingredientId);
                     ps.setDouble(3, quantity);
                     ps.setString(4, unit.name());
-                    ps.executeUpdate();
+                    ps.addBatch();
                 }
+                ps.executeBatch();
             }
 
             return findDishById(dishId);
@@ -291,12 +261,7 @@ public class DataRetriever {
             ps.setString(1, "%" + ingredientName + "%");
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                Dish dish = new Dish(
-                        rs.getInt("id"),
-                        rs.getString("name"),
-                        DishTypeEnum.valueOf(rs.getString("dish_type")),
-                        rs.getObject("price") != null ? rs.getDouble("price") : null
-                );
+                Dish dish = mapDish(rs, "id", "name", "dish_type", "price");
                 dishes.add(dish);
             }
 
@@ -309,7 +274,6 @@ public class DataRetriever {
     }
 
     public List<Ingredient> findIngredientsByCriteria(String ingredientName, CategoryEnum category, String dishName, int page, int size){
-        List<Ingredient> ingredients = new ArrayList<>();
         int offset = (page - 1 ) * size;
         StringBuilder sql = new StringBuilder("""
             SELECT i.id AS ingredient_id, i.name AS ingredient_name, i.price as ingredient_price, i.category,
@@ -355,24 +319,7 @@ public class DataRetriever {
             }
 
             ResultSet rs = ps.executeQuery();
-
-            while (rs.next()) {
-
-                Ingredient ingredient = new Ingredient(
-                        rs.getInt("ingredient_id"),
-                        rs.getString("ingredient_name"),
-                        rs.getDouble("ingredient_price"),
-                        CategoryEnum.valueOf(rs.getString("category").toUpperCase())
-                );
-
-                if (rs.getObject("quantity_required") != null) {
-                    ingredient.setQuantity(rs.getDouble("quantity_required"));
-                }
-
-                ingredients.add(ingredient);
-            }
-
-            return ingredients;
+            return mapIngredientsWithOptionalQuantity(rs);
 
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -570,12 +517,7 @@ public class DataRetriever {
                 if (!rs.next()) {
                     throw new RuntimeException("Ingredient not found (id=" + ingredientId + ")");
                 }
-                ingredient = new Ingredient(
-                        rs.getInt("id"),
-                        rs.getString("name"),
-                        rs.getDouble("price"),
-                        CategoryEnum.valueOf(rs.getString("category"))
-                );
+                ingredient = mapIngredient(rs, "id", "name", "price", "category");
             }
         }
 
@@ -628,14 +570,23 @@ public class DataRetriever {
         }
     }
 
-    private int findOrCreateIngredient(Connection conn, Ingredient ingredient) throws SQLException {
-        String selectSql = "SELECT id FROM ingredient WHERE name = ?";
-        try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
-            ps.setString(1, ingredient.getName());
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                return rs.getInt("id");
+    private Integer findIngredientIdByName(Connection conn, String name) throws SQLException {
+        String sql = "SELECT id FROM ingredient WHERE name = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, name);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("id");
+                }
             }
+        }
+        return null;
+    }
+
+    private int findOrCreateIngredient(Connection conn, Ingredient ingredient) throws SQLException {
+        Integer existingId = findIngredientIdByName(conn, ingredient.getName());
+        if (existingId != null) {
+            return existingId;
         }
 
         String insertSql = "INSERT INTO ingredient(name, category, price) VALUES (?, ?::ingredient_category, ?) RETURNING id";
@@ -653,11 +604,8 @@ public class DataRetriever {
     }
 
     private boolean ingredientExists(Connection conn, String name) {
-        String sql = "SELECT id FROM ingredient WHERE name = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, name);
-            ResultSet rs = ps.executeQuery();
-            return rs.next();
+        try {
+            return findIngredientIdByName(conn, name) != null;
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -694,6 +642,46 @@ public class DataRetriever {
             }
         }
         throw new RuntimeException("Unable to generate new id for ingredient");
+    }
+
+    private Dish mapDish(ResultSet rs,
+                         String idColumn,
+                         String nameColumn,
+                         String typeColumn,
+                         String priceColumn) throws SQLException {
+        return new Dish(
+                rs.getInt(idColumn),
+                rs.getString(nameColumn),
+                DishTypeEnum.valueOf(rs.getString(typeColumn)),
+                rs.getObject(priceColumn) != null ? rs.getDouble(priceColumn) : null
+        );
+    }
+
+    private Ingredient mapIngredient(ResultSet rs,
+                                     String idColumn,
+                                     String nameColumn,
+                                     String priceColumn,
+                                     String categoryColumn) throws SQLException {
+        return new Ingredient(
+                rs.getInt(idColumn),
+                rs.getString(nameColumn),
+                rs.getDouble(priceColumn),
+                CategoryEnum.valueOf(rs.getString(categoryColumn).toUpperCase())
+        );
+    }
+
+    private List<Ingredient> mapIngredientsWithOptionalQuantity(ResultSet rs) throws SQLException {
+        List<Ingredient> ingredients = new ArrayList<>();
+        while (rs.next()) {
+            Ingredient ingredient = mapIngredient(rs, "ingredient_id", "ingredient_name", "ingredient_price", "category");
+
+            if (rs.getObject("quantity_required") != null) {
+                ingredient.setQuantity(rs.getDouble("quantity_required"));
+            }
+
+            ingredients.add(ingredient);
+        }
+        return ingredients;
     }
 
     private Ingredient upsertIngredient(Connection conn, Ingredient toSave) throws SQLException {
