@@ -31,4 +31,21 @@ public class Order {
     public List<DishOrder> getDishOrders() {
         return dishOrders;
     }
+
+    public Double getTotalAmountWithoutVAT() {
+        return dishOrders.stream()
+                .mapToDouble(dishOrder -> {
+                    Dish dish = dishOrder.getDish();
+                    Double price = dish.getPrice();
+                    if (price == null) {
+                        throw new IllegalStateException("Price not set for dish " + dish.getName());
+                    }
+                    return price * dishOrder.getQuantity();
+                })
+                .sum();
+    }
+
+    public Double getTotalAmountWithVAT() {
+        return getTotalAmountWithoutVAT() * 1.2;
+    }
 }
