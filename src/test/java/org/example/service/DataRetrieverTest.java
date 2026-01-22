@@ -32,12 +32,14 @@ class DataRetrieverTest {
              Statement stmt = conn.createStatement()) {
 
             stmt.execute("DELETE FROM dish_ingredient;");
+            stmt.execute("DELETE FROM stock_movement;");
             stmt.execute("DELETE FROM ingredient;");
             stmt.execute("DELETE FROM dish;");
 
             stmt.execute("SELECT setval(pg_get_serial_sequence('dish', 'id'), 1, false);");
             stmt.execute("SELECT setval(pg_get_serial_sequence('ingredient', 'id'), 1, false);");
             stmt.execute("SELECT setval(pg_get_serial_sequence('dish_ingredient', 'id'), 1, false);");
+            stmt.execute("SELECT setval(pg_get_serial_sequence('stock_movement', 'id'), 1, false);");
 
             String dataSql = Files.readString(Paths.get("src/main/resources/sql/data.sql"));
 
@@ -64,6 +66,7 @@ class DataRetrieverTest {
             stmt.execute("SELECT setval(pg_get_serial_sequence('dish', 'id'), (SELECT COALESCE(MAX(id),0) + 1 FROM dish), false);");
             stmt.execute("SELECT setval(pg_get_serial_sequence('ingredient', 'id'), (SELECT COALESCE(MAX(id),0) + 1 FROM ingredient), false);");
             stmt.execute("SELECT setval(pg_get_serial_sequence('dish_ingredient', 'id'), (SELECT COALESCE(MAX(id),0) + 1 FROM dish_ingredient), false);");
+            stmt.execute("SELECT setval(pg_get_serial_sequence('stock_movement', 'id'), (SELECT COALESCE(MAX(id),0) + 1 FROM stock_movement), false);");
         }
     }
 
