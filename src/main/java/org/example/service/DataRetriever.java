@@ -34,7 +34,7 @@ public class DataRetriever {
             if (rs.next()) {
                 Dish dish = mapDish(rs, "id", "name", "dish_type", "price");
 
-                dish.setIngredients(findIngredientsByDishId(dish.getId()));
+                dish.setDishIngredients(findDishIngredientsByDishId(dish.getId()));
                 return dish;
             }
             throw new RuntimeException("Dish not found (id=" + id + ")");
@@ -222,10 +222,11 @@ public class DataRetriever {
 
             String insertDishIngredientSql = "INSERT INTO dish_ingredient(id_dish, id_ingredient, quantity_required, unit) VALUES (?, ?, ?, ?::unit_type)";
             try (PreparedStatement ps = conn.prepareStatement(insertDishIngredientSql)) {
-                for (Ingredient ing : dishToSave.getIngredients()) {
+                for (DishIngredient di : dishToSave.getDishIngredients()) {
+                    Ingredient ing = di.getIngredient();
                     int ingredientId = findOrCreateIngredient(conn, ing);
-                    double quantity = ing.getQuantity() == null ? 1.0 : ing.getQuantity();
-                    Unit unit = Unit.KG;
+                    double quantity = di.getQuantity();
+                    Unit unit = di.getUnit();
 
                     ps.setInt(1, dishId);
                     ps.setInt(2, ingredientId);
