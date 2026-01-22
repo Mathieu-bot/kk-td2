@@ -4,9 +4,9 @@ public class DishIngredient {
     private final Dish dish;
     private final Ingredient ingredient;
     private final double quantity;
-    private final UnitType unit;
+    private final Unit unit;
 
-    public DishIngredient(Dish dish, Ingredient ingredient, double quantity, UnitType unit) {
+    public DishIngredient(Dish dish, Ingredient ingredient, double quantity, Unit unit) {
         this.dish = dish;
         this.ingredient = ingredient;
         this.quantity = quantity;
@@ -25,7 +25,7 @@ public class DishIngredient {
         return quantity;
     }
 
-    public UnitType getUnit() {
+    public Unit getUnit() {
         return unit;
     }
 }
