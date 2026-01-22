@@ -11,11 +11,11 @@ public class Main {
         DBConnection dbConnection = new DBConnection();
         DataRetriever dataRetriever = new DataRetriever(dbConnection);
 
-        System.out.println("=== FIND DISH TEST ===");
-
         Dish dish = dataRetriever.findDishById(1);
-        System.out.println("Dish name: " + dish.getName());
-        System.out.println("Dish cost: " + dish.getDishCost());
+        System.out.println(dish.getDishCost());
+        System.out.println(dish.getGrossMargin());
+
+        System.out.println("=== FIND DISH TEST ===");
 
         try {
             System.out.println("Gross margin: " + dish.getGrossMargin());
@@ -45,16 +45,14 @@ public class Main {
                 0,
                 "Salt",
                 200,
-                CategoryEnum.OTHER,
-                newDish
+                CategoryEnum.OTHER
         );
 
         Ingredient oil = new Ingredient(
                 0,
                 "Oil",
                 300,
-                CategoryEnum.OTHER,
-                newDish
+                CategoryEnum.OTHER
         );
 
         newDish.getIngredients().add(salt);
@@ -66,5 +64,8 @@ public class Main {
         System.out.println("Dish cost: " + savedDish.getDishCost());
         System.out.println("Gross margin: " + savedDish.getGrossMargin());
 
+        
+        System.out.println("Dish name: " + dish.getName());
+        System.out.println("Dish cost: " + dish.getDishCost());
     }
 }

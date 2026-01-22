@@ -130,24 +130,24 @@ class DataRetrieverTest {
 
     @Test
     void testCreateIngredients_success() {
-        Ingredient from = new Ingredient(0, "Fromage", 1200, CategoryEnum.DAIRY, null);
-        Ingredient oignon = new Ingredient(0, "Oignon", 500, CategoryEnum.VEGETABLE, null);
+        Ingredient from = new Ingredient(0, "Fromage", 1200, CategoryEnum.DAIRY);
+        Ingredient oignon = new Ingredient(0, "Oignon", 500, CategoryEnum.VEGETABLE);
         List<Ingredient> created = dataRetriever.createIngredients(List.of(from, oignon));
         assertEquals(2, created.size());
     }
 
     @Test
     void testCreateIngredients_duplicate() {
-        Ingredient carotte = new Ingredient(0, "Carotte", 2000, CategoryEnum.VEGETABLE, null);
-        Ingredient laitue = new Ingredient(0, "Laitue", 2000, CategoryEnum.VEGETABLE, null);
+        Ingredient carotte = new Ingredient(0, "Carotte", 2000, CategoryEnum.VEGETABLE);
+        Ingredient laitue = new Ingredient(0, "Laitue", 2000, CategoryEnum.VEGETABLE);
         assertThrows(RuntimeException.class, () -> dataRetriever.createIngredients(List.of(carotte, laitue)));
     }
 
     @Test
     void testSaveDish_newDish() {
         Dish newDish = new Dish(0, "Soupe de legumes", DishTypeEnum.START);
-        newDish.addIngredient(new Ingredient(0, "Oignon", 500.0, CategoryEnum.VEGETABLE, null));
-        newDish.addIngredient(new Ingredient(0, "Fromage", 1200.0, CategoryEnum.DAIRY, null));
+        newDish.addIngredient(new Ingredient(0, "Oignon", 500.0, CategoryEnum.VEGETABLE));
+        newDish.addIngredient(new Ingredient(0, "Fromage", 1200.0, CategoryEnum.DAIRY));
 
         Dish saved = dataRetriever.saveDish(newDish);
 
@@ -162,8 +162,8 @@ class DataRetrieverTest {
     void testSaveDish_updateExisting() {
         Dish salad = dataRetriever.findDishById(1);
 
-        salad.addIngredient(new Ingredient(0, "Oignon", 500.0, CategoryEnum.VEGETABLE, null));
-        salad.addIngredient(new Ingredient(0, "Fromage", 1200.0, CategoryEnum.DAIRY, null));
+        salad.addIngredient(new Ingredient(0, "Oignon", 500.0, CategoryEnum.VEGETABLE));
+        salad.addIngredient(new Ingredient(0, "Fromage", 1200.0, CategoryEnum.DAIRY));
 
         Dish updated = dataRetriever.saveDish(salad);
 
