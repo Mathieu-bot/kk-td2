@@ -26,6 +26,7 @@ public class Ingredient {
     public Double getQuantity() { return quantity; }
     public void setQuantity(Double quantity) { this.quantity = quantity; }
     public List<StockMovement> getStockMovementList() { return stockMovementList; }
+    public void setStockMovementList(List<StockMovement> stockMovementList) { this.stockMovementList = stockMovementList; }
 
     public StockValue getStockValueAt(Instant instant) {
         if (instant == null) {
