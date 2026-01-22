@@ -8,8 +8,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -63,6 +67,19 @@ class DataRetrieverTest {
                 }
             }
 
+            String stockMovementSql = Files.readString(Paths.get("src/main/resources/sql/add_stock_movement_schema.sql"));
+
+            for (String command : stockMovementSql.split(";")) {
+                String trimmed = command.trim();
+                if (trimmed.isEmpty()) {
+                    continue;
+                }
+                String upper = trimmed.toUpperCase();
+                if (upper.startsWith("INSERT ")) {
+                    stmt.execute(trimmed);
+                }
+            }
+
             stmt.execute("SELECT setval(pg_get_serial_sequence('dish', 'id'), (SELECT COALESCE(MAX(id),0) + 1 FROM dish), false);");
             stmt.execute("SELECT setval(pg_get_serial_sequence('ingredient', 'id'), (SELECT COALESCE(MAX(id),0) + 1 FROM ingredient), false);");
             stmt.execute("SELECT setval(pg_get_serial_sequence('dish_ingredient', 'id'), (SELECT COALESCE(MAX(id),0) + 1 FROM dish_ingredient), false);");
@@ -75,9 +92,9 @@ class DataRetrieverTest {
         Dish dish = dataRetriever.findDishById(1);
         assertEquals("Salade fraiche", dish.getName());
         assertEquals(DishTypeEnum.START, dish.getDishType());
-        assertEquals(2, dish.getIngredients().size());
-        assertTrue(dish.getIngredients().stream().anyMatch(i -> i.getName().equals("Laitue")));
-        assertTrue(dish.getIngredients().stream().anyMatch(i -> i.getName().equals("Tomate")));
+        assertEquals(2, dish.getDishIngredients().size());
+        assertTrue(dish.getDishIngredients().stream().anyMatch(di -> di.getIngredient().getName().equals("Laitue")));
+        assertTrue(dish.getDishIngredients().stream().anyMatch(di -> di.getIngredient().getName().equals("Tomate")));
     }
 
     @Test
@@ -149,34 +166,50 @@ class DataRetrieverTest {
     @Test
     void testSaveDish_newDish() {
         Dish newDish = new Dish(0, "Soupe de legumes", DishTypeEnum.START);
-        newDish.addIngredient(new Ingredient(0, "Oignon", 500.0, CategoryEnum.VEGETABLE));
-        newDish.addIngredient(new Ingredient(0, "Fromage", 1200.0, CategoryEnum.DAIRY));
+        Ingredient oignon = new Ingredient(0, "Oignon", 500.0, CategoryEnum.VEGETABLE);
+        Ingredient fromage = new Ingredient(0, "Fromage", 1200.0, CategoryEnum.DAIRY);
+
+        newDish.setDishIngredients(List.of(
+                new DishIngredient(newDish, oignon, 1.0, Unit.KG),
+                new DishIngredient(newDish, fromage, 1.0, Unit.KG)
+        ));
 
         Dish saved = dataRetriever.saveDish(newDish);
 
         assertTrue(saved.getId() > 0);
         assertEquals("Soupe de legumes", saved.getName());
-        assertEquals(2, saved.getIngredients().size());
-        assertTrue(saved.getIngredients().stream().anyMatch(i -> i.getName().equals("Oignon")));
-        assertTrue(saved.getIngredients().stream().anyMatch(i -> i.getName().equals("Fromage")));
+        assertEquals(2, saved.getDishIngredients().size());
+        assertTrue(saved.getDishIngredients().stream().anyMatch(di -> di.getIngredient().getName().equals("Oignon")));
+        assertTrue(saved.getDishIngredients().stream().anyMatch(di -> di.getIngredient().getName().equals("Fromage")));
     }
 
     @Test
     void testSaveDish_updateExisting() {
         Dish salad = dataRetriever.findDishById(1);
-
-        salad.addIngredient(new Ingredient(0, "Oignon", 500.0, CategoryEnum.VEGETABLE));
-        salad.addIngredient(new Ingredient(0, "Fromage", 1200.0, CategoryEnum.DAIRY));
+        List<DishIngredient> updatedIngredients = new ArrayList<>(salad.getDishIngredients());
+        updatedIngredients.add(new DishIngredient(
+                salad,
+                new Ingredient(0, "Oignon", 500.0, CategoryEnum.VEGETABLE),
+                1.0,
+                Unit.KG
+        ));
+        updatedIngredients.add(new DishIngredient(
+                salad,
+                new Ingredient(0, "Fromage", 1200.0, CategoryEnum.DAIRY),
+                1.0,
+                Unit.KG
+        ));
+        salad.setDishIngredients(updatedIngredients);
 
         Dish updated = dataRetriever.saveDish(salad);
 
         assertEquals(1, updated.getId());
         assertEquals("Salade fraiche", updated.getName());
-        assertEquals(4, updated.getIngredients().size());
-        assertTrue(updated.getIngredients().stream().anyMatch(i -> i.getName().equals("Laitue")));
-        assertTrue(updated.getIngredients().stream().anyMatch(i -> i.getName().equals("Tomate")));
-        assertTrue(updated.getIngredients().stream().anyMatch(i -> i.getName().equals("Oignon")));
-        assertTrue(updated.getIngredients().stream().anyMatch(i -> i.getName().equals("Fromage")));
+        assertEquals(4, updated.getDishIngredients().size());
+        assertTrue(updated.getDishIngredients().stream().anyMatch(di -> di.getIngredient().getName().equals("Laitue")));
+        assertTrue(updated.getDishIngredients().stream().anyMatch(di -> di.getIngredient().getName().equals("Tomate")));
+        assertTrue(updated.getDishIngredients().stream().anyMatch(di -> di.getIngredient().getName().equals("Oignon")));
+        assertTrue(updated.getDishIngredients().stream().anyMatch(di -> di.getIngredient().getName().equals("Fromage")));
     }
 
     @Test
@@ -213,5 +246,69 @@ class DataRetrieverTest {
 
         Dish saladeFruits = dataRetriever.findDishById(5);
         assertThrows(IllegalStateException.class, saladeFruits::getGrossMargin);
+    }
+
+    @Test
+    void testGetStockValueAt_expectedValuesFromSqlData() throws SQLException {
+        Instant t = Instant.parse("2024-01-06T12:00:00Z");
+
+        Ingredient laitue = loadIngredientWithMovements(1);
+        assertEquals(4.8, laitue.getStockValueAt(t).getQuantity(), 0.0001);
+
+        Ingredient tomate = loadIngredientWithMovements(2);
+        assertEquals(3.85, tomate.getStockValueAt(t).getQuantity(), 0.0001);
+
+        Ingredient poulet = loadIngredientWithMovements(3);
+        assertEquals(9.0, poulet.getStockValueAt(t).getQuantity(), 0.0001);
+
+        Ingredient chocolat = loadIngredientWithMovements(4);
+        assertEquals(2.7, chocolat.getStockValueAt(t).getQuantity(), 0.0001);
+
+        Ingredient beurre = loadIngredientWithMovements(5);
+        assertEquals(2.3, beurre.getStockValueAt(t).getQuantity(), 0.0001);
+    }
+
+    private Ingredient loadIngredientWithMovements(int ingredientId) throws SQLException {
+        try (Connection conn = dbConnection.getDBConnection()) {
+
+            Ingredient ingredient;
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "SELECT id, name, price, category FROM ingredient WHERE id = ?")) {
+                ps.setInt(1, ingredientId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    assertTrue(rs.next(), "Ingredient not found (id=" + ingredientId + ")");
+                    ingredient = new Ingredient(
+                            rs.getInt("id"),
+                            rs.getString("name"),
+                            rs.getDouble("price"),
+                            CategoryEnum.valueOf(rs.getString("category"))
+                    );
+                }
+            }
+
+            List<StockMovement> movements = new ArrayList<>();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "SELECT id, quantity, type, unit, creation_datetime FROM stock_movement WHERE id_ingredient = ?")) {
+                ps.setInt(1, ingredientId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        StockValue value = new StockValue(
+                                rs.getDouble("quantity"),
+                                Unit.valueOf(rs.getString("unit"))
+                        );
+                        StockMovement movement = new StockMovement(
+                                rs.getInt("id"),
+                                value,
+                                MovementTypeEnum.valueOf(rs.getString("type")),
+                                rs.getTimestamp("creation_datetime").toInstant()
+                        );
+                        movements.add(movement);
+                    }
+                }
+            }
+
+            ingredient.setStockMovementList(movements);
+            return ingredient;
+        }
     }
 }
