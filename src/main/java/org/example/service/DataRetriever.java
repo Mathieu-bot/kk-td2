@@ -541,7 +541,12 @@ public class DataRetriever {
           orderToSave.getId() > 0
               ? orderToSave.getId()
               : getNextId(conn, "\"order\"", "Unable to generate new id for order");
+
       String reference = orderToSave.getReference();
+      if (reference == null || reference.isBlank() || !reference.matches("ORD\\d{5}")) {
+        reference = generateOrderReference(conn);
+      }
+
       Instant creationDateTime =
           orderToSave.getCreationDateTime() != null
               ? orderToSave.getCreationDateTime()
@@ -585,6 +590,18 @@ public class DataRetriever {
     }
 
     return new Order(generatedOrderId, savedReference, savedCreationDateTime, dishOrders);
+  }
+
+  private String generateOrderReference(Connection conn) throws SQLException {
+    String sql = "SELECT nextval('order_reference_seq') AS seq";
+    try (PreparedStatement ps = conn.prepareStatement(sql);
+        ResultSet rs = ps.executeQuery()) {
+      if (!rs.next()) {
+        throw new RuntimeException("Unable to generate order reference from sequence");
+      }
+      long seq = rs.getLong("seq");
+      return String.format("ORD%05d", seq);
+    }
   }
 
   private Ingredient loadIngredientWithMovements(Connection conn, int ingredientId)
