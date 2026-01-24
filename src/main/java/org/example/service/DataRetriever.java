@@ -411,16 +411,16 @@ public class DataRetriever {
 
       String findLinesSql =
           """
-          SELECT do.id            AS dish_order_id,
-                 do.id_dish       AS id_dish,
-                 do.quantity      AS quantity,
-                 d.id             AS dish_id,
-                 d.name           AS dish_name,
-                 d.dish_type      AS dish_type,
-                 d.price          AS dish_price
-          FROM dish_order do
-          JOIN dish d ON d.id = do.id_dish
-          WHERE do.id_order = ?
+          SELECT dor.id            AS dish_order_id,
+                 dor.id_dish       AS id_dish,
+                 dor.quantity      AS quantity,
+                 d.id              AS dish_id,
+                 d.name            AS dish_name,
+                 d.dish_type       AS dish_type,
+                 d.price           AS dish_price
+          FROM dish_order dor
+          JOIN dish d ON d.id = dor.id_dish
+          WHERE dor.id_order = ?
           """;
 
       List<DishOrder> dishOrders = new ArrayList<>();
