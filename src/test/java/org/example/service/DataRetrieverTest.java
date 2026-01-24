@@ -271,10 +271,9 @@ class DataRetrieverTest {
     Dish saladeFraiche = dataRetriever.findDishById(1);
 
     DishOrder line = new DishOrder(0, saladeFraiche, 1);
-    String reference = "ORD00001";
     Order order = new Order(
         0,
-        reference,
+        null,
         Instant.parse("2024-01-06T12:00:00Z"),
         List.of(line)
     );
@@ -282,7 +281,6 @@ class DataRetrieverTest {
     Order saved = dataRetriever.saveOrder(order);
 
     assertTrue(saved.getId() > 0);
-    assertEquals(reference, saved.getReference());
     assertTrue(saved.getReference().matches("ORD\\d{5}"));
     assertEquals(1, saved.getDishOrders().size());
     assertEquals(1, saved.getDishOrders().getFirst().getDish().getId());
@@ -291,7 +289,7 @@ class DataRetrieverTest {
     assertEquals(3500.00, saved.getTotalAmountWithoutVAT(), 0.001);
     assertEquals(4200.00, saved.getTotalAmountWithVAT(), 0.001);
 
-    Order reloaded = dataRetriever.findOrderByReference(reference);
+    Order reloaded = dataRetriever.findOrderByReference(saved.getReference());
     assertEquals(saved.getId(), reloaded.getId());
     assertEquals(saved.getReference(), reloaded.getReference());
     assertEquals(1, reloaded.getDishOrders().size());
