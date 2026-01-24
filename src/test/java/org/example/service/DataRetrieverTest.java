@@ -271,12 +271,7 @@ class DataRetrieverTest {
     Dish saladeFraiche = dataRetriever.findDishById(1);
 
     DishOrder line = new DishOrder(0, saladeFraiche, 1);
-    Order order = new Order(
-        0,
-        null,
-        Instant.parse("2024-01-06T12:00:00Z"),
-        List.of(line)
-    );
+    Order order = new Order(0, null, Instant.parse("2024-01-06T12:00:00Z"), List.of(line));
 
     Order saved = dataRetriever.saveOrder(order);
 
@@ -305,15 +300,37 @@ class DataRetrieverTest {
     Dish pouletGrille = dataRetriever.findDishById(2);
 
     DishOrder line = new DishOrder(0, pouletGrille, 1000);
-    Order order = new Order(
-        0,
-        "ORD00024",
-        Instant.parse("2024-01-06T12:00:00Z"),
-        List.of(line)
-    );
+    Order order = new Order(0, "ORD00024", Instant.parse("2024-01-06T12:00:00Z"), List.of(line));
 
-    RuntimeException ex = assertThrows(RuntimeException.class, () -> dataRetriever.saveOrder(order));
+    RuntimeException ex =
+        assertThrows(RuntimeException.class, () -> dataRetriever.saveOrder(order));
     assertTrue(ex.getMessage().contains("Not enough stock for ingredient"));
+  }
+
+  @Test
+  void testSaveOrder_consumesStock() throws SQLException {
+    Instant t = Instant.parse("2024-01-06T12:00:00Z");
+
+    Ingredient laitueBefore = loadIngredientWithMovements(1);
+    Ingredient tomateBefore = loadIngredientWithMovements(2);
+
+    double stockLaitueBefore = laitueBefore.getStockValueAt(t).getQuantity();
+    double stockTomateBefore = tomateBefore.getStockValueAt(t).getQuantity();
+
+    Dish saladeFraiche = dataRetriever.findDishById(1);
+    DishOrder line = new DishOrder(0, saladeFraiche, 1);
+    Order order = new Order(0, null, t, List.of(line));
+
+    dataRetriever.saveOrder(order);
+
+    Ingredient laitueAfter = loadIngredientWithMovements(1);
+    Ingredient tomateAfter = loadIngredientWithMovements(2);
+
+    double stockLaitueAfter = laitueAfter.getStockValueAt(t).getQuantity();
+    double stockTomateAfter = tomateAfter.getStockValueAt(t).getQuantity();
+
+    assertEquals(stockLaitueBefore - 0.20, stockLaitueAfter, 0.0001);
+    assertEquals(stockTomateBefore - 0.15, stockTomateAfter, 0.0001);
   }
 
   @Test
@@ -323,12 +340,7 @@ class DataRetrieverTest {
 
   @Test
   void testSaveOrder_invalidOrder_emptyDishOrders() {
-    Order order = new Order(
-        0,
-        "ORD00023",
-        Instant.parse("2024-01-06T12:00:00Z"),
-        List.of()
-    );
+    Order order = new Order(0, "ORD00023", Instant.parse("2024-01-06T12:00:00Z"), List.of());
 
     assertThrows(IllegalArgumentException.class, () -> dataRetriever.saveOrder(order));
   }
