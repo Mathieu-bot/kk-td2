@@ -359,6 +359,8 @@ public class DataRetriever {
 
       Order savedOrder = upsertOrderAndLines(conn, orderToSave, dishOrders);
 
+      applyStockMovementsForOrder(conn, requiredQuantities, savedOrder.getCreationDateTime());
+
       conn.commit();
       return savedOrder;
 
@@ -836,4 +838,23 @@ public class DataRetriever {
       psWithoutId.executeBatch();
     }
   }
+
+  private void applyStockMovementsForOrder(
+      Connection conn, Map<Integer, Double> requiredQuantities, Instant movementInstant)
+      throws SQLException {
+    for (Map.Entry<Integer, Double> entry : requiredQuantities.entrySet()) {
+      int ingredientId = entry.getKey();
+      double requiredQuantity = entry.getValue();
+
+      if (requiredQuantity <= 0) {
+        continue;
+      }
+
+      StockValue value = new StockValue(requiredQuantity, Unit.KG);
+      StockMovement movement = new StockMovement(0, value, MovementTypeEnum.OUT, movementInstant);
+
+      saveStockMovements(conn, ingredientId, List.of(movement));
+    }
+  }
+
 }
