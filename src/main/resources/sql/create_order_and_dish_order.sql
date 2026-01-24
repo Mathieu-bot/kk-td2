@@ -4,6 +4,7 @@ CREATE TABLE "order" (
     creation_datetime TIMESTAMP NOT NULL
 );
 
+CREATE SEQUENCE order_reference_seq START WITH 1 INCREMENT BY 1;
 
 CREATE TABLE dish_order (
     id SERIAL CONSTRAINT dish_order_pk PRIMARY KEY,
