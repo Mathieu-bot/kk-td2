@@ -319,6 +319,11 @@ class DataRetrieverTest {
   }
 
   @Test
+  void testSaveOrder_invalidOrder_null() {
+    assertThrows(IllegalArgumentException.class, () -> dataRetriever.saveOrder(null));
+  }
+
+  @Test
   void testGetStockValueAt_expectedValuesFromSqlData() throws SQLException {
     Instant t = Instant.parse("2024-01-06T12:00:00Z");
 
