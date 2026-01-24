@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.example.database.DBConnection;
 import org.example.model.*;
+import org.example.model.Order;
 import org.junit.jupiter.api.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -263,6 +264,42 @@ class DataRetrieverTest {
 
     Dish saladeFruits = dataRetriever.findDishById(5);
     assertThrows(IllegalStateException.class, saladeFruits::getGrossMargin);
+  }
+
+  @Test
+  void testSaveOrder_andFindByReference_success() {
+    Dish saladeFraiche = dataRetriever.findDishById(1);
+
+    DishOrder line = new DishOrder(0, saladeFraiche, 1);
+    String reference = "ORD00001";
+    Order order = new Order(
+        0,
+        reference,
+        Instant.parse("2024-01-06T12:00:00Z"),
+        List.of(line)
+    );
+
+    Order saved = dataRetriever.saveOrder(order);
+
+    assertTrue(saved.getId() > 0);
+    assertEquals(reference, saved.getReference());
+    assertTrue(saved.getReference().matches("ORD\\d{5}"));
+    assertEquals(1, saved.getDishOrders().size());
+    assertEquals(1, saved.getDishOrders().getFirst().getDish().getId());
+    assertEquals(1, saved.getDishOrders().getFirst().getQuantity());
+
+    assertEquals(3500.00, saved.getTotalAmountWithoutVAT(), 0.001);
+    assertEquals(4200.00, saved.getTotalAmountWithVAT(), 0.001);
+
+    Order reloaded = dataRetriever.findOrderByReference(reference);
+    assertEquals(saved.getId(), reloaded.getId());
+    assertEquals(saved.getReference(), reloaded.getReference());
+    assertEquals(1, reloaded.getDishOrders().size());
+    assertEquals(1, reloaded.getDishOrders().getFirst().getDish().getId());
+    assertEquals(1, reloaded.getDishOrders().getFirst().getQuantity());
+
+    assertEquals(saved.getTotalAmountWithoutVAT(), reloaded.getTotalAmountWithoutVAT(), 0.001);
+    assertEquals(saved.getTotalAmountWithVAT(), reloaded.getTotalAmountWithVAT(), 0.001);
   }
 
   @Test
