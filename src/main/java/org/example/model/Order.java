@@ -6,6 +6,8 @@ import java.util.*;
 public class Order {
   private final int id;
   private final String reference;
+  private double amountWithoutVAT;
+  private double amountWithVAT;
   private final Instant creationDateTime;
   private final java.util.List<DishOrder> dishOrders;
 
