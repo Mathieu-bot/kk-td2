@@ -303,6 +303,22 @@ class DataRetrieverTest {
   }
 
   @Test
+  void testSaveOrder_notEnoughStock() {
+    Dish pouletGrille = dataRetriever.findDishById(2);
+
+    DishOrder line = new DishOrder(0, pouletGrille, 1000);
+    Order order = new Order(
+        0,
+        "ORD00024",
+        Instant.parse("2024-01-06T12:00:00Z"),
+        List.of(line)
+    );
+
+    RuntimeException ex = assertThrows(RuntimeException.class, () -> dataRetriever.saveOrder(order));
+    assertTrue(ex.getMessage().contains("Not enough stock for ingredient"));
+  }
+
+  @Test
   void testGetStockValueAt_expectedValuesFromSqlData() throws SQLException {
     Instant t = Instant.parse("2024-01-06T12:00:00Z");
 
