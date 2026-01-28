@@ -50,4 +50,34 @@ public final class UnitConversionService {
     return fromKg(ingredientId, quantityInKg, to);
   }
 
+  private static double toKg(int ingredientId, double quantity, Unit from) {
+    if (from == Unit.KG) {
+      return quantity;
+    }
+
+    ConversionConfig config = CONFIGS.get(ingredientId);
+    if (config == null) {
+      throw new IllegalArgumentException(
+          "No unit conversion configuration for ingredient id=" + ingredientId);
+    }
+
+    if (from == Unit.PCS) {
+      if (config.pcsPerKg == null || config.pcsPerKg == 0.0) {
+        throw new IllegalArgumentException(
+            "Conversion from PCS to KG not supported for ingredient id=" + ingredientId);
+      }
+      return quantity / config.pcsPerKg;
+    }
+
+    if (from == Unit.L) {
+      if (config.litersPerKg == null || config.litersPerKg == 0.0) {
+        throw new IllegalArgumentException(
+            "Conversion from L to KG not supported for ingredient id=" + ingredientId);
+      }
+      return quantity / config.litersPerKg;
+    }
+
+    throw new IllegalArgumentException("Unsupported from unit: " + from);
+  }
+
 }
