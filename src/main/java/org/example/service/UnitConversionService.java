@@ -80,4 +80,33 @@ public final class UnitConversionService {
     throw new IllegalArgumentException("Unsupported from unit: " + from);
   }
 
+  private static double fromKg(int ingredientId, double quantityInKg, Unit to) {
+    if (to == Unit.KG) {
+      return quantityInKg;
+    }
+
+    ConversionConfig config = CONFIGS.get(ingredientId);
+    if (config == null) {
+      throw new IllegalArgumentException(
+          "No unit conversion configuration for ingredient id=" + ingredientId);
+    }
+
+    if (to == Unit.PCS) {
+      if (config.pcsPerKg == null || config.pcsPerKg == 0.0) {
+        throw new IllegalArgumentException(
+            "Conversion from KG to PCS not supported for ingredient id=" + ingredientId);
+      }
+      return quantityInKg * config.pcsPerKg;
+    }
+
+    if (to == Unit.L) {
+      if (config.litersPerKg == null || config.litersPerKg == 0.0) {
+        throw new IllegalArgumentException(
+            "Conversion from KG to L not supported for ingredient id=" + ingredientId);
+      }
+      return quantityInKg * config.litersPerKg;
+    }
+
+    throw new IllegalArgumentException("Unsupported to unit: " + to);
+  }
 }
