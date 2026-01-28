@@ -365,6 +365,45 @@ class DataRetrieverTest {
     assertEquals(2.3, beurre.getStockValueAt(t).getQuantity(), 0.0001);
   }
 
+  @Test
+  void testGetStockValueAt_withMixedUnitsScenario() throws Exception {
+    Instant t = Instant.parse("2024-01-06T12:00:00Z");
+
+    try (Connection conn = dbConnection.getDBConnection();
+        Statement stmt = conn.createStatement()) {
+
+      stmt.execute("DELETE FROM stock_movement;");
+
+      stmt.execute(
+          "INSERT INTO stock_movement(id_ingredient, quantity, type, unit, creation_datetime) "
+              + "VALUES (1, 5.0, 'IN', 'KG', '2024-01-05 08:00'),"
+              + "(2, 4.0, 'IN', 'KG', '2024-01-05 08:00'),"
+              + "(3, 10.0, 'IN', 'KG', '2024-01-05 08:00'),"
+              + "(4, 3.0, 'IN', 'KG', '2024-01-05 08:00'),"
+              + "(5, 2.5, 'IN', 'KG', '2024-01-05 08:00');");
+
+      stmt.execute(
+          "INSERT INTO stock_movement(id_ingredient, quantity, type, unit, creation_datetime) "
+              + "VALUES (2, 5.0, 'OUT', 'PCS', '2024-01-06 12:00'),"
+              + "(1, 2.0, 'OUT', 'PCS', '2024-01-06 12:00'),"
+              + "(4, 1.0, 'OUT', 'L',   '2024-01-06 12:00'),"
+              + "(3, 4.0, 'OUT', 'PCS', '2024-01-06 12:00'),"
+              + "(5, 1.0, 'OUT', 'L',   '2024-01-06 12:00');");
+    }
+
+    Ingredient laitue = loadIngredientWithMovements(1);
+    Ingredient tomate = loadIngredientWithMovements(2);
+    Ingredient poulet = loadIngredientWithMovements(3);
+    Ingredient chocolat = loadIngredientWithMovements(4);
+    Ingredient beurre = loadIngredientWithMovements(5);
+
+    assertEquals(4.0, laitue.getStockValueAt(t).getQuantity(), 0.0001);
+    assertEquals(3.5, tomate.getStockValueAt(t).getQuantity(), 0.0001);
+    assertEquals(9.5, poulet.getStockValueAt(t).getQuantity(), 0.0001);
+    assertEquals(2.6, chocolat.getStockValueAt(t).getQuantity(), 0.0001);
+    assertEquals(2.3, beurre.getStockValueAt(t).getQuantity(), 0.0001);
+  }
+
   private Ingredient loadIngredientWithMovements(int ingredientId) throws SQLException {
     try (Connection conn = dbConnection.getDBConnection()) {
 
