@@ -1,5 +1,7 @@
 package org.example.model;
 
+import org.example.service.UnitConversionService;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -60,8 +62,7 @@ public class Ingredient {
       return new StockValue(0.0, Unit.KG);
     }
 
-    double totalQuantity = 0.0;
-    Unit unit = null;
+    double totalQuantityInKg = 0.0;
 
     for (StockMovement movement : stockMovementList) {
       if (movement == null) {
@@ -78,23 +79,19 @@ public class Ingredient {
         continue;
       }
 
-      if (unit == null) {
-        unit = value.getUnit() == null ? Unit.KG : value.getUnit();
-      }
+      Unit movementUnit = value.getUnit() == null ? Unit.KG : value.getUnit();
+      double quantityInKg =
+          UnitConversionService.convert(
+              id, value.getQuantity(), movementUnit, Unit.KG);
 
-      double qty = value.getQuantity();
       if (movement.getType() == MovementTypeEnum.IN) {
-        totalQuantity += qty;
+        totalQuantityInKg += quantityInKg;
       } else if (movement.getType() == MovementTypeEnum.OUT) {
-        totalQuantity -= qty;
+        totalQuantityInKg -= quantityInKg;
       }
     }
 
-    if (unit == null) {
-      unit = Unit.KG;
-    }
-
-    return new StockValue(totalQuantity, unit);
+    return new StockValue(totalQuantityInKg, Unit.KG);
   }
 
   @Override

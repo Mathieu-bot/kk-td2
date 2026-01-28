@@ -31,7 +31,7 @@ public class DataRetriever {
       ResultSet rs = ps.executeQuery();
 
       if (rs.next()) {
-        Dish dish = mapDish(rs, "id", "name", "dish_type", "price");
+        Dish dish = mapDish(rs, "id", "name", "price");
 
         dish.setDishIngredients(findDishIngredientsByDishId(dish.getId()));
         return dish;
@@ -73,10 +73,10 @@ public class DataRetriever {
       ResultSet rs = ps.executeQuery();
 
       while (rs.next()) {
-        Dish dish = mapDish(rs, "dish_id", "dish_name", "dish_type", "dish_price");
+        Dish dish = mapDish(rs, "dish_id", "dish_name", "dish_price");
 
         Ingredient ingredient =
-            mapIngredient(rs, "ingredient_id", "ingredient_name", "ingredient_price", "category");
+            mapIngredient(rs, "ingredient_id", "ingredient_name", "ingredient_price");
 
         double quantity = rs.getDouble("quantity_required");
         Unit unit = Unit.valueOf(rs.getString("unit"));
@@ -270,7 +270,7 @@ public class DataRetriever {
       ps.setString(1, "%" + ingredientName + "%");
       ResultSet rs = ps.executeQuery();
       while (rs.next()) {
-        Dish dish = mapDish(rs, "id", "name", "dish_type", "price");
+        Dish dish = mapDish(rs, "id", "name", "price");
         dishes.add(dish);
       }
 
@@ -353,11 +353,38 @@ public class DataRetriever {
               ? orderToSave.getCreationDateTime()
               : Instant.now();
 
-      Map<Integer, Integer> dishQuantities = aggregateDishQuantities(dishOrders);
-      Map<Integer, Double> requiredQuantities = computeRequiredQuantities(conn, dishQuantities);
-      checkStockOrThrow(conn, requiredQuantities, checkInstant);
+      boolean isUpdate = orderToSave.getId() > 0;
+
+      Map<Integer, Integer> newDishQuantities = aggregateDishQuantities(dishOrders);
+      Map<Integer, Double> newRequiredQuantities =
+          computeRequiredQuantities(conn, newDishQuantities);
+
+      Map<Integer, Double> existingRequiredQuantities = new HashMap<>();
+      if (isUpdate) {
+        Map<Integer, Integer> existingDishQuantities =
+            loadExistingDishQuantitiesForOrder(conn, orderToSave.getId());
+        if (!existingDishQuantities.isEmpty()) {
+          existingRequiredQuantities = computeRequiredQuantities(conn, existingDishQuantities);
+        }
+      }
+
+      Map<Integer, Double> deltaQuantities = new HashMap<>(newRequiredQuantities);
+      for (Map.Entry<Integer, Double> entry : existingRequiredQuantities.entrySet()) {
+        deltaQuantities.merge(entry.getKey(), -entry.getValue(), Double::sum);
+      }
+
+      Map<Integer, Double> additionalRequired = new HashMap<>();
+      for (Map.Entry<Integer, Double> entry : deltaQuantities.entrySet()) {
+        if (entry.getValue() > 0) {
+          additionalRequired.put(entry.getKey(), entry.getValue());
+        }
+      }
+
+      checkStockOrThrow(conn, additionalRequired, checkInstant);
 
       Order savedOrder = upsertOrderAndLines(conn, orderToSave, dishOrders);
+
+      applyStockMovementsForOrder(conn, deltaQuantities, savedOrder.getCreationDateTime());
 
       conn.commit();
       return savedOrder;
@@ -429,7 +456,7 @@ public class DataRetriever {
         ps.setInt(1, orderId);
         try (ResultSet rs = ps.executeQuery()) {
           while (rs.next()) {
-            Dish dish = mapDish(rs, "dish_id", "dish_name", "dish_type", "dish_price");
+            Dish dish = mapDish(rs, "dish_id", "dish_name", "dish_price");
             int dishOrderId = rs.getInt("dish_order_id");
             int quantity = rs.getInt("quantity");
             dishOrders.add(new DishOrder(dishOrderId, dish, quantity));
@@ -480,7 +507,8 @@ public class DataRetriever {
   private Map<Integer, Double> computeRequiredQuantities(
       Connection conn, Map<Integer, Integer> dishQuantities) throws SQLException {
     Map<Integer, Double> requiredQuantities = new HashMap<>();
-    String sql = "SELECT id_ingredient, quantity_required FROM dish_ingredient WHERE id_dish = ?";
+    String sql =
+        "SELECT id_ingredient, quantity_required, unit FROM dish_ingredient WHERE id_dish = ?";
 
     try (PreparedStatement ps = conn.prepareStatement(sql)) {
       for (Map.Entry<Integer, Integer> entry : dishQuantities.entrySet()) {
@@ -492,9 +520,14 @@ public class DataRetriever {
           while (rs.next()) {
             int ingredientId = rs.getInt("id_ingredient");
             double quantityPerDish = rs.getDouble("quantity_required");
-            double totalRequiredForDish = quantityPerDish * totalDishQuantity;
+            Unit unit = Unit.valueOf(rs.getString("unit"));
 
-            requiredQuantities.merge(ingredientId, totalRequiredForDish, Double::sum);
+            double totalRequiredInSourceUnit = quantityPerDish * totalDishQuantity;
+            double totalRequiredInKg =
+                UnitConversionService.convert(
+                    ingredientId, totalRequiredInSourceUnit, unit, Unit.KG);
+
+            requiredQuantities.merge(ingredientId, totalRequiredInKg, Double::sum);
           }
         }
       }
@@ -517,6 +550,25 @@ public class DataRetriever {
         throw new RuntimeException("Not enough stock for ingredient: " + ingredient.getName());
       }
     }
+  }
+
+  private Map<Integer, Integer> loadExistingDishQuantitiesForOrder(Connection conn, int orderId)
+      throws SQLException {
+    Map<Integer, Integer> dishQuantities = new HashMap<>();
+    String sql = "SELECT id_dish, quantity FROM dish_order WHERE id_order = ?";
+
+    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+      ps.setInt(1, orderId);
+      try (ResultSet rs = ps.executeQuery()) {
+        while (rs.next()) {
+          int dishId = rs.getInt("id_dish");
+          int quantity = rs.getInt("quantity");
+          dishQuantities.merge(dishId, quantity, Integer::sum);
+        }
+      }
+    }
+
+    return dishQuantities;
   }
 
   private Order upsertOrderAndLines(Connection conn, Order orderToSave, List<DishOrder> dishOrders)
@@ -615,7 +667,7 @@ public class DataRetriever {
         if (!rs.next()) {
           throw new RuntimeException("Ingredient not found (id=" + ingredientId + ")");
         }
-        ingredient = mapIngredient(rs, "id", "name", "price", "category");
+        ingredient = mapIngredient(rs, "id", "name", "price");
       }
     }
 
@@ -645,15 +697,6 @@ public class DataRetriever {
     return ingredient;
   }
 
-  private List<Ingredient> findIngredientsByDishId(int dishId) {
-    List<Ingredient> ingredients = new ArrayList<>();
-    for (DishIngredient di : findDishIngredientsByDishId(dishId)) {
-      Ingredient ingredient = di.getIngredient();
-      ingredient.setQuantity(di.getQuantity());
-      ingredients.add(ingredient);
-    }
-    return ingredients;
-  }
 
   private void checkDuplicatesInList(List<Ingredient> ingredients) {
     Set<String> names = new HashSet<>();
@@ -721,31 +764,29 @@ public class DataRetriever {
     throw new RuntimeException(errorMessage);
   }
 
-  private Dish mapDish(
-      ResultSet rs, String idColumn, String nameColumn, String typeColumn, String priceColumn)
+  private Dish mapDish(ResultSet rs, String idColumn, String nameColumn, String priceColumn)
       throws SQLException {
     return new Dish(
         rs.getInt(idColumn),
         rs.getString(nameColumn),
-        DishTypeEnum.valueOf(rs.getString(typeColumn)),
+        DishTypeEnum.valueOf(rs.getString("dish_type")),
         rs.getObject(priceColumn) != null ? rs.getDouble(priceColumn) : null);
   }
 
   private Ingredient mapIngredient(
-      ResultSet rs, String idColumn, String nameColumn, String priceColumn, String categoryColumn)
-      throws SQLException {
+      ResultSet rs, String idColumn, String nameColumn, String priceColumn) throws SQLException {
     return new Ingredient(
         rs.getInt(idColumn),
         rs.getString(nameColumn),
         rs.getDouble(priceColumn),
-        CategoryEnum.valueOf(rs.getString(categoryColumn).toUpperCase()));
+        CategoryEnum.valueOf(rs.getString("category").toUpperCase()));
   }
 
   private List<Ingredient> mapIngredientsWithOptionalQuantity(ResultSet rs) throws SQLException {
     List<Ingredient> ingredients = new ArrayList<>();
     while (rs.next()) {
       Ingredient ingredient =
-          mapIngredient(rs, "ingredient_id", "ingredient_name", "ingredient_price", "category");
+          mapIngredient(rs, "ingredient_id", "ingredient_name", "ingredient_price");
 
       if (rs.getObject("quantity_required") != null) {
         ingredient.setQuantity(rs.getDouble("quantity_required"));
@@ -834,6 +875,34 @@ public class DataRetriever {
 
       psWithId.executeBatch();
       psWithoutId.executeBatch();
+    }
+  }
+
+  private void applyStockMovementsForOrder(
+      Connection conn, Map<Integer, Double> requiredQuantities, Instant movementInstant)
+      throws SQLException {
+    for (Map.Entry<Integer, Double> entry : requiredQuantities.entrySet()) {
+      int ingredientId = entry.getKey();
+      double delta = entry.getValue();
+
+      if (delta == 0.0) {
+        continue;
+      }
+
+      MovementTypeEnum type;
+      double quantity;
+      if (delta > 0) {
+        type = MovementTypeEnum.OUT;
+        quantity = delta;
+      } else {
+        type = MovementTypeEnum.IN;
+        quantity = -delta;
+      }
+
+      StockValue value = new StockValue(quantity, Unit.KG);
+      StockMovement movement = new StockMovement(0, value, type, movementInstant);
+
+      saveStockMovements(conn, ingredientId, List.of(movement));
     }
   }
 }
