@@ -311,8 +311,8 @@ class DataRetrieverTest {
   void testSaveOrder_consumesStock() throws SQLException {
     Instant t = Instant.parse("2024-01-06T12:00:00Z");
 
-    Ingredient laitueBefore = loadIngredientWithMovements(1);
-    Ingredient tomateBefore = loadIngredientWithMovements(2);
+    Ingredient laitueBefore = dataRetriever.findIngredientById(1);
+    Ingredient tomateBefore = dataRetriever.findIngredientById(2);
 
     double stockLaitueBefore = laitueBefore.getStockValueAt(t).getQuantity();
     double stockTomateBefore = tomateBefore.getStockValueAt(t).getQuantity();
@@ -323,8 +323,8 @@ class DataRetrieverTest {
 
     dataRetriever.saveOrder(order);
 
-    Ingredient laitueAfter = loadIngredientWithMovements(1);
-    Ingredient tomateAfter = loadIngredientWithMovements(2);
+    Ingredient laitueAfter = dataRetriever.findIngredientById(1);
+    Ingredient tomateAfter = dataRetriever.findIngredientById(2);
 
     double stockLaitueAfter = laitueAfter.getStockValueAt(t).getQuantity();
     double stockTomateAfter = tomateAfter.getStockValueAt(t).getQuantity();
@@ -349,19 +349,19 @@ class DataRetrieverTest {
   void testGetStockValueAt_expectedValuesFromSqlData() throws SQLException {
     Instant t = Instant.parse("2024-01-06T12:00:00Z");
 
-    Ingredient laitue = loadIngredientWithMovements(1);
+    Ingredient laitue = dataRetriever.findIngredientById(1);
     assertEquals(4.8, laitue.getStockValueAt(t).getQuantity(), 0.0001);
 
-    Ingredient tomate = loadIngredientWithMovements(2);
+    Ingredient tomate = dataRetriever.findIngredientById(2);
     assertEquals(3.85, tomate.getStockValueAt(t).getQuantity(), 0.0001);
 
-    Ingredient poulet = loadIngredientWithMovements(3);
+    Ingredient poulet = dataRetriever.findIngredientById(3);
     assertEquals(9.0, poulet.getStockValueAt(t).getQuantity(), 0.0001);
 
-    Ingredient chocolat = loadIngredientWithMovements(4);
+    Ingredient chocolat = dataRetriever.findIngredientById(4);
     assertEquals(2.7, chocolat.getStockValueAt(t).getQuantity(), 0.0001);
 
-    Ingredient beurre = loadIngredientWithMovements(5);
+    Ingredient beurre = dataRetriever.findIngredientById(5);
     assertEquals(2.3, beurre.getStockValueAt(t).getQuantity(), 0.0001);
   }
 
@@ -391,11 +391,11 @@ class DataRetrieverTest {
               + "(5, 1.0, 'OUT', 'L',   '2024-01-06 12:00');");
     }
 
-    Ingredient laitue = loadIngredientWithMovements(1);
-    Ingredient tomate = loadIngredientWithMovements(2);
-    Ingredient poulet = loadIngredientWithMovements(3);
-    Ingredient chocolat = loadIngredientWithMovements(4);
-    Ingredient beurre = loadIngredientWithMovements(5);
+    Ingredient laitue = dataRetriever.findIngredientById(1);
+    Ingredient tomate = dataRetriever.findIngredientById(2);
+    Ingredient poulet = dataRetriever.findIngredientById(3);
+    Ingredient chocolat = dataRetriever.findIngredientById(4);
+    Ingredient beurre = dataRetriever.findIngredientById(5);
 
     assertEquals(4.0, laitue.getStockValueAt(t).getQuantity(), 0.0001);
     assertEquals(3.5, tomate.getStockValueAt(t).getQuantity(), 0.0001);
@@ -404,47 +404,4 @@ class DataRetrieverTest {
     assertEquals(2.3, beurre.getStockValueAt(t).getQuantity(), 0.0001);
   }
 
-  private Ingredient loadIngredientWithMovements(int ingredientId) throws SQLException {
-    try (Connection conn = dbConnection.getDBConnection()) {
-
-      Ingredient ingredient;
-      try (PreparedStatement ps =
-          conn.prepareStatement("SELECT id, name, price, category FROM ingredient WHERE id = ?")) {
-        ps.setInt(1, ingredientId);
-        try (ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next(), "Ingredient not found (id=" + ingredientId + ")");
-          ingredient =
-              new Ingredient(
-                  rs.getInt("id"),
-                  rs.getString("name"),
-                  rs.getDouble("price"),
-                  CategoryEnum.valueOf(rs.getString("category")));
-        }
-      }
-
-      List<StockMovement> movements = new ArrayList<>();
-      try (PreparedStatement ps =
-          conn.prepareStatement(
-              "SELECT id, quantity, type, unit, creation_datetime FROM stock_movement WHERE"
-                  + " id_ingredient = ?")) {
-        ps.setInt(1, ingredientId);
-        try (ResultSet rs = ps.executeQuery()) {
-          while (rs.next()) {
-            StockValue value =
-                new StockValue(rs.getDouble("quantity"), Unit.valueOf(rs.getString("unit")));
-            StockMovement movement =
-                new StockMovement(
-                    rs.getInt("id"),
-                    value,
-                    MovementTypeEnum.valueOf(rs.getString("type")),
-                    rs.getTimestamp("creation_datetime").toInstant());
-            movements.add(movement);
-          }
-        }
-      }
-
-      ingredient.setStockMovementList(movements);
-      return ingredient;
-    }
-  }
 }
