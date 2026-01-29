@@ -39,9 +39,9 @@ public class Order {
     return dishOrders;
   }
 
-   public TableOrder getTableOrder() {
-     return tableOrder;
-   }
+  public TableOrder getTableOrder() {
+    return tableOrder;
+  }
 
   public Double getTotalAmountWithoutVAT() {
     return dishOrders.stream()

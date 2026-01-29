@@ -269,7 +269,10 @@ class DataRetrieverTest {
     Dish saladeFraiche = dataRetriever.findDishById(1);
 
     DishOrder line = new DishOrder(0, saladeFraiche, 1);
-    Order order = new Order(0, null, Instant.parse("2024-01-06T12:00:00Z"), List.of(line));
+    Instant t = Instant.parse("2024-01-06T12:00:00Z");
+    Table table = new Table(1, 1, null);
+    TableOrder tableOrder = new TableOrder(table, t, t.plusSeconds(3600));
+    Order order = new Order(0, null, t, List.of(line), tableOrder);
 
     Order saved = dataRetriever.saveOrder(order);
 
@@ -298,7 +301,10 @@ class DataRetrieverTest {
     Dish pouletGrille = dataRetriever.findDishById(2);
 
     DishOrder line = new DishOrder(0, pouletGrille, 1000);
-    Order order = new Order(0, "ORD00024", Instant.parse("2024-01-06T12:00:00Z"), List.of(line));
+    Instant t = Instant.parse("2024-01-06T12:00:00Z");
+    Table table = new Table(1, 1, null);
+    TableOrder tableOrder = new TableOrder(table, t, t.plusSeconds(3600));
+    Order order = new Order(0, "ORD00024", t, List.of(line), tableOrder);
 
     RuntimeException ex =
         assertThrows(RuntimeException.class, () -> dataRetriever.saveOrder(order));
@@ -317,7 +323,9 @@ class DataRetrieverTest {
 
     Dish saladeFraiche = dataRetriever.findDishById(1);
     DishOrder line = new DishOrder(0, saladeFraiche, 1);
-    Order order = new Order(0, null, t, List.of(line));
+    Table table = new Table(1, 1, null);
+    TableOrder tableOrder = new TableOrder(table, t, t.plusSeconds(3600));
+    Order order = new Order(0, null, t, List.of(line), tableOrder);
 
     dataRetriever.saveOrder(order);
 
@@ -343,7 +351,9 @@ class DataRetrieverTest {
 
     Dish saladeFraiche = dataRetriever.findDishById(1);
     DishOrder line1 = new DishOrder(0, saladeFraiche, 1);
-    Order order1 = new Order(0, null, t, List.of(line1));
+    Table table = new Table(1, 1, null);
+    TableOrder tableOrder = new TableOrder(table, t, t.plusSeconds(3600));
+    Order order1 = new Order(0, null, t, List.of(line1), tableOrder);
 
     Order saved = dataRetriever.saveOrder(order1);
 
@@ -362,7 +372,8 @@ class DataRetrieverTest {
             saved.getId(),
             saved.getReference(),
             saved.getCreationDateTime(),
-            List.of(updatedLine));
+            List.of(updatedLine),
+            saved.getTableOrder());
 
     dataRetriever.saveOrder(updatedOrder);
 
@@ -382,7 +393,9 @@ class DataRetrieverTest {
 
     Dish saladeFraiche = dataRetriever.findDishById(1);
     DishOrder initialLine = new DishOrder(0, saladeFraiche, 1);
-    Order initialOrder = new Order(0, null, t, List.of(initialLine));
+    Table table = new Table(1, 1, null);
+    TableOrder tableOrder = new TableOrder(table, t, t.plusSeconds(3600));
+    Order initialOrder = new Order(0, null, t, List.of(initialLine), tableOrder);
 
     Order saved = dataRetriever.saveOrder(initialOrder);
 
@@ -392,7 +405,8 @@ class DataRetrieverTest {
             saved.getId(),
             saved.getReference(),
             saved.getCreationDateTime(),
-            List.of(updatedLine));
+            List.of(updatedLine),
+            saved.getTableOrder());
 
     RuntimeException ex =
         assertThrows(RuntimeException.class, () -> dataRetriever.saveOrder(updatedOrder));
@@ -411,7 +425,9 @@ class DataRetrieverTest {
 
     Dish saladeFraiche = dataRetriever.findDishById(1);
     DishOrder line1 = new DishOrder(0, saladeFraiche, 3);
-    Order order1 = new Order(0, null, t, List.of(line1));
+    Table table = new Table(1, 1, null);
+    TableOrder tableOrder = new TableOrder(table, t, t.plusSeconds(3600));
+    Order order1 = new Order(0, null, t, List.of(line1), tableOrder);
 
     Order saved = dataRetriever.saveOrder(order1);
 
@@ -430,7 +446,8 @@ class DataRetrieverTest {
             saved.getId(),
             saved.getReference(),
             saved.getCreationDateTime(),
-            List.of(updatedLine));
+            List.of(updatedLine),
+            saved.getTableOrder());
 
     dataRetriever.saveOrder(updatedOrder);
 
@@ -451,7 +468,10 @@ class DataRetrieverTest {
 
   @Test
   void testSaveOrder_invalidOrder_emptyDishOrders() {
-    Order order = new Order(0, "ORD00023", Instant.parse("2024-01-06T12:00:00Z"), List.of());
+    Instant t = Instant.parse("2024-01-06T12:00:00Z");
+    Table table = new Table(1, 1, null);
+    TableOrder tableOrder = new TableOrder(table, t, t.plusSeconds(3600));
+    Order order = new Order(0, "ORD00023", t, List.of(), tableOrder);
 
     assertThrows(IllegalArgumentException.class, () -> dataRetriever.saveOrder(order));
   }
@@ -514,5 +534,4 @@ class DataRetrieverTest {
     assertEquals(2.6, chocolat.getStockValueAt(t).getQuantity(), 0.0001);
     assertEquals(2.3, beurre.getStockValueAt(t).getQuantity(), 0.0001);
   }
-
 }
