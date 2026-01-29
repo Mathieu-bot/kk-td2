@@ -10,7 +10,7 @@ CREATE TABLE dish_order (
     id SERIAL CONSTRAINT dish_order_pk PRIMARY KEY,
     id_order INT NOT NULL,
     id_dish INT NOT NULL,
-    quantity NUMERIC(10,2) NOT NULL,
+    quantity INT NOT NULL,
     CONSTRAINT fk_order FOREIGN KEY (id_order) REFERENCES "order"(id) ON DELETE CASCADE,
     CONSTRAINT fk_dish FOREIGN KEY (id_dish) REFERENCES dish(id) ON DELETE CASCADE
 );
