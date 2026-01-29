@@ -334,6 +334,51 @@ class DataRetrieverTest {
   }
 
   @Test
+  void testUpdateOrder_increaseQuantity_consumesAdditionalStock() throws SQLException {
+    Instant t = Instant.parse("2024-01-06T12:00:00Z");
+
+    Ingredient laitueInitial = dataRetriever.findIngredientById(1);
+    Ingredient tomateInitial = dataRetriever.findIngredientById(2);
+
+    double stockLaitueInitial = laitueInitial.getStockValueAt(t).getQuantity();
+    double stockTomateInitial = tomateInitial.getStockValueAt(t).getQuantity();
+
+    Dish saladeFraiche = dataRetriever.findDishById(1);
+    DishOrder line1 = new DishOrder(0, saladeFraiche, 1);
+    Order order1 = new Order(0, null, t, List.of(line1));
+
+    Order saved = dataRetriever.saveOrder(order1);
+
+    Ingredient laitueAfterFirst = dataRetriever.findIngredientById(1);
+    Ingredient tomateAfterFirst = dataRetriever.findIngredientById(2);
+
+    double stockLaitueAfterFirst = laitueAfterFirst.getStockValueAt(t).getQuantity();
+    double stockTomateAfterFirst = tomateAfterFirst.getStockValueAt(t).getQuantity();
+
+    assertEquals(stockLaitueInitial - 0.20, stockLaitueAfterFirst, 0.0001);
+    assertEquals(stockTomateInitial - 0.15, stockTomateAfterFirst, 0.0001);
+
+    DishOrder updatedLine = new DishOrder(0, saladeFraiche, 3);
+    Order updatedOrder =
+        new Order(
+            saved.getId(),
+            saved.getReference(),
+            saved.getCreationDateTime(),
+            List.of(updatedLine));
+
+    dataRetriever.saveOrder(updatedOrder);
+
+    Ingredient laitueAfterUpdate = dataRetriever.findIngredientById(1);
+    Ingredient tomateAfterUpdate = dataRetriever.findIngredientById(2);
+
+    double stockLaitueAfterUpdate = laitueAfterUpdate.getStockValueAt(t).getQuantity();
+    double stockTomateAfterUpdate = tomateAfterUpdate.getStockValueAt(t).getQuantity();
+
+    assertEquals(stockLaitueAfterFirst - 2 * 0.20, stockLaitueAfterUpdate, 0.0001);
+    assertEquals(stockTomateAfterFirst - 2 * 0.15, stockTomateAfterUpdate, 0.0001);
+  }
+
+  @Test
   void testSaveOrder_invalidOrder_null() {
     assertThrows(IllegalArgumentException.class, () -> dataRetriever.saveOrder(null));
   }
