@@ -44,6 +44,18 @@ public class DataRetriever {
     }
   }
 
+  public Ingredient findIngredientById(int id) {
+    Connection conn = dbConnection.getDBConnection();
+
+    try {
+      return loadIngredientWithMovements(conn, id);
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    } finally {
+      dbConnection.close(conn);
+    }
+  }
+
   public List<DishIngredient> findDishIngredientsByDishId(int dishId) {
     List<DishIngredient> result = new ArrayList<>();
     String sql =
