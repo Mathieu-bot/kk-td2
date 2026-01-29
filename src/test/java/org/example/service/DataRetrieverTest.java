@@ -6,8 +6,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Instant;
@@ -376,6 +374,29 @@ class DataRetrieverTest {
 
     assertEquals(stockLaitueAfterFirst - 2 * 0.20, stockLaitueAfterUpdate, 0.0001);
     assertEquals(stockTomateAfterFirst - 2 * 0.15, stockTomateAfterUpdate, 0.0001);
+  }
+
+  @Test
+  void testUpdateOrder_increaseQuantity_notEnoughStock() {
+    Instant t = Instant.parse("2024-01-06T12:00:00Z");
+
+    Dish saladeFraiche = dataRetriever.findDishById(1);
+    DishOrder initialLine = new DishOrder(0, saladeFraiche, 1);
+    Order initialOrder = new Order(0, null, t, List.of(initialLine));
+
+    Order saved = dataRetriever.saveOrder(initialOrder);
+
+    DishOrder updatedLine = new DishOrder(0, saladeFraiche, 1000);
+    Order updatedOrder =
+        new Order(
+            saved.getId(),
+            saved.getReference(),
+            saved.getCreationDateTime(),
+            List.of(updatedLine));
+
+    RuntimeException ex =
+        assertThrows(RuntimeException.class, () -> dataRetriever.saveOrder(updatedOrder));
+    assertTrue(ex.getMessage().contains("Not enough stock for ingredient"));
   }
 
   @Test
