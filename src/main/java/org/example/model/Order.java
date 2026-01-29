@@ -1,21 +1,26 @@
 package org.example.model;
 
 import java.time.Instant;
-import java.util.*;
+import java.util.List;
 
 public class Order {
   private final int id;
   private final String reference;
-  private double amountWithoutVAT;
-  private double amountWithVAT;
   private final Instant creationDateTime;
-  private final java.util.List<DishOrder> dishOrders;
+  private final List<DishOrder> dishOrders;
+  private final TableOrder tableOrder;
 
-  public Order(int id, String reference, Instant creationDateTime, List<DishOrder> dishOrders) {
+  public Order(
+      int id,
+      String reference,
+      Instant creationDateTime,
+      List<DishOrder> dishOrders,
+      TableOrder tableOrder) {
     this.id = id;
     this.reference = reference;
     this.creationDateTime = creationDateTime;
     this.dishOrders = dishOrders;
+    this.tableOrder = tableOrder;
   }
 
   public int getId() {
@@ -33,6 +38,10 @@ public class Order {
   public List<DishOrder> getDishOrders() {
     return dishOrders;
   }
+
+   public TableOrder getTableOrder() {
+     return tableOrder;
+   }
 
   public Double getTotalAmountWithoutVAT() {
     return dishOrders.stream()
