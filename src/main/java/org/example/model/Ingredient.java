@@ -1,10 +1,9 @@
 package org.example.model;
 
-import org.example.service.UnitConversionService;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import org.example.service.UnitConversionService;
 
 public class Ingredient {
   private final int id;
@@ -81,8 +80,7 @@ public class Ingredient {
 
       Unit movementUnit = value.getUnit() == null ? Unit.KG : value.getUnit();
       double quantityInKg =
-          UnitConversionService.convert(
-              id, value.getQuantity(), movementUnit, Unit.KG);
+          UnitConversionService.convert(id, value.getQuantity(), movementUnit, Unit.KG);
 
       if (movement.getType() == MovementTypeEnum.IN) {
         totalQuantityInKg += quantityInKg;
