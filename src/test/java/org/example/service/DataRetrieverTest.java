@@ -33,6 +33,9 @@ class DataRetrieverTest {
     try (Connection conn = dbConnection.getDBConnection();
         Statement stmt = conn.createStatement()) {
 
+      stmt.execute("DELETE FROM dish_order;");
+      stmt.execute("DELETE FROM \"order\";");
+
       stmt.execute("DELETE FROM dish_ingredient;");
       stmt.execute("DELETE FROM stock_movement;");
       stmt.execute("DELETE FROM ingredient;");
