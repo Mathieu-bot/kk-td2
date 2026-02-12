@@ -326,7 +326,7 @@ public class DataRetriever {
       params.add("%" + dishName + "%");
     }
 
-    sql.append(" LIMIT ? OFFSET ?");
+    sql.append(" ORDER BY i.id, d.id LIMIT ? OFFSET ?");
     params.add(size);
     params.add(offset);
 
@@ -344,7 +344,6 @@ public class DataRetriever {
 
       ResultSet rs = ps.executeQuery();
       return mapIngredientsWithOptionalQuantity(rs);
-
     } catch (SQLException e) {
       throw new RuntimeException(e);
     } finally {
@@ -353,12 +352,19 @@ public class DataRetriever {
   }
 
   public Order saveOrder(Order orderToSave) {
+    if (orderToSave == null) {
+      throw new IllegalArgumentException("orderToSave must not be null");
+    }
+
     List<DishOrder> dishOrders = validateOrder(orderToSave);
+    TableOrder tableOrder = validateTableOrder(orderToSave);
 
     Connection conn = dbConnection.getDBConnection();
 
     try {
       conn.setAutoCommit(false);
+
+      checkTableAvailabilityOrThrow(conn, orderToSave.getId(), tableOrder);
 
       Instant checkInstant =
           orderToSave.getCreationDateTime() != null
@@ -394,7 +400,7 @@ public class DataRetriever {
 
       checkStockOrThrow(conn, additionalRequired, checkInstant);
 
-      Order savedOrder = upsertOrderAndLines(conn, orderToSave, dishOrders);
+      Order savedOrder = upsertOrderAndLines(conn, orderToSave, dishOrders, tableOrder);
 
       applyStockMovementsForOrder(conn, deltaQuantities, savedOrder.getCreationDateTime());
 
@@ -427,14 +433,25 @@ public class DataRetriever {
     try {
       String findOrderSql =
           """
-          SELECT id, reference, creation_datetime
-          FROM "order"
-          WHERE reference = ?
+          SELECT o.id,
+                 o.reference,
+                 o.creation_datetime,
+                 o.id_table,
+                 o.arrival_datetime,
+                 o.departure_datetime,
+                 t.number AS table_number
+          FROM "order" o
+          JOIN restaurant_table t ON t.id = o.id_table
+          WHERE o.reference = ?
           """;
 
       int orderId;
       String savedReference;
       Instant creationDateTime;
+      int tableId;
+      int tableNumber;
+      Instant arrivalDatetime;
+      Instant departureDatetime;
 
       try (PreparedStatement ps = conn.prepareStatement(findOrderSql)) {
         ps.setString(1, reference);
@@ -445,6 +462,10 @@ public class DataRetriever {
           orderId = rs.getInt("id");
           savedReference = rs.getString("reference");
           creationDateTime = rs.getTimestamp("creation_datetime").toInstant();
+          tableId = rs.getInt("id_table");
+          tableNumber = rs.getInt("table_number");
+          arrivalDatetime = rs.getTimestamp("arrival_datetime").toInstant();
+          departureDatetime = rs.getTimestamp("departure_datetime").toInstant();
         }
       }
 
@@ -476,7 +497,10 @@ public class DataRetriever {
         }
       }
 
-      return new Order(orderId, savedReference, creationDateTime, dishOrders);
+      Table table = new Table(tableId, tableNumber, null);
+      TableOrder tableOrder = new TableOrder(table, arrivalDatetime, departureDatetime);
+
+      return new Order(orderId, savedReference, creationDateTime, dishOrders, tableOrder);
 
     } catch (SQLException e) {
       throw new RuntimeException(e);
@@ -495,6 +519,61 @@ public class DataRetriever {
       throw new IllegalArgumentException("Order must contain at least one DishOrder");
     }
     return dishOrders;
+  }
+
+  private TableOrder validateTableOrder(Order orderToSave) {
+    TableOrder tableOrder = orderToSave.getTableOrder();
+    if (tableOrder == null) {
+      throw new IllegalArgumentException("No table provided for the order");
+    }
+
+    Table table = tableOrder.getTable();
+    if (table == null || table.getId() <= 0) {
+      throw new IllegalArgumentException("Table ID must be a positive integer");
+    }
+
+    Instant arrival = tableOrder.getArrivalDatetime();
+    Instant departure = tableOrder.getDepartureDatetime();
+    if (arrival == null || departure == null) {
+      throw new IllegalArgumentException("Table arrival and departure times must be provided");
+    }
+
+    if (!arrival.isBefore(departure)) {
+      throw new IllegalArgumentException("Arrival time must be strictly before departure time");
+    }
+
+    return tableOrder;
+  }
+
+  private void checkTableAvailabilityOrThrow(Connection conn, int orderId, TableOrder tableOrder)
+      throws SQLException {
+    Table table = tableOrder.getTable();
+    Instant arrival = tableOrder.getArrivalDatetime();
+    Instant departure = tableOrder.getDepartureDatetime();
+
+    String sql =
+        """
+        SELECT COUNT(*) AS cnt
+        FROM "order"
+        WHERE id_table = ?
+          AND id <> ?
+          AND arrival_datetime < ?
+          AND departure_datetime > ?
+        """;
+
+    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+      ps.setInt(1, table.getId());
+      ps.setInt(2, orderId);
+      ps.setTimestamp(3, Timestamp.from(departure));
+      ps.setTimestamp(4, Timestamp.from(arrival));
+
+      try (ResultSet rs = ps.executeQuery()) {
+        if (rs.next() && rs.getInt("cnt") > 0) {
+          throw new RuntimeException(
+              "The selected table is not available for the requested time slot");
+        }
+      }
+    }
   }
 
   private Map<Integer, Integer> aggregateDishQuantities(List<DishOrder> dishOrders) {
@@ -583,17 +662,23 @@ public class DataRetriever {
     return dishQuantities;
   }
 
-  private Order upsertOrderAndLines(Connection conn, Order orderToSave, List<DishOrder> dishOrders)
+  private Order upsertOrderAndLines(
+      Connection conn, Order orderToSave, List<DishOrder> dishOrders, TableOrder tableOrder)
       throws SQLException {
 
     String upsertOrderSql =
         """
-        INSERT INTO "order"(id, reference, creation_datetime)
-        VALUES (?, ?, ?)
+        INSERT INTO "order"(id, reference, creation_datetime, id_table, arrival_datetime,
+                             departure_datetime)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT (id) DO UPDATE
         SET reference = EXCLUDED.reference,
-            creation_datetime = EXCLUDED.creation_datetime
-        RETURNING id, reference, creation_datetime
+            creation_datetime = EXCLUDED.creation_datetime,
+            id_table = EXCLUDED.id_table,
+            arrival_datetime = EXCLUDED.arrival_datetime,
+            departure_datetime = EXCLUDED.departure_datetime
+        RETURNING id, reference, creation_datetime, id_table, arrival_datetime,
+                  departure_datetime
         """;
 
     int generatedOrderId;
@@ -616,9 +701,16 @@ public class DataRetriever {
               ? orderToSave.getCreationDateTime()
               : Instant.now();
 
+      Table table = tableOrder.getTable();
+      Instant arrival = tableOrder.getArrivalDatetime();
+      Instant departure = tableOrder.getDepartureDatetime();
+
       ps.setInt(1, idParam);
       ps.setString(2, reference);
       ps.setTimestamp(3, Timestamp.from(creationDateTime));
+      ps.setInt(4, table.getId());
+      ps.setTimestamp(5, Timestamp.from(arrival));
+      ps.setTimestamp(6, Timestamp.from(departure));
 
       try (ResultSet rs = ps.executeQuery()) {
         if (!rs.next()) {
@@ -653,7 +745,8 @@ public class DataRetriever {
       ps.executeBatch();
     }
 
-    return new Order(generatedOrderId, savedReference, savedCreationDateTime, dishOrders);
+    return new Order(
+        generatedOrderId, savedReference, savedCreationDateTime, dishOrders, tableOrder);
   }
 
   private String generateOrderReference(Connection conn) throws SQLException {
@@ -708,7 +801,6 @@ public class DataRetriever {
     ingredient.setStockMovementList(movements);
     return ingredient;
   }
-
 
   private void checkDuplicatesInList(List<Ingredient> ingredients) {
     Set<String> names = new HashSet<>();
