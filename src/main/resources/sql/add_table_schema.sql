@@ -4,16 +4,18 @@ CREATE TABLE IF NOT EXISTS restaurant_table (
 );
 
 ALTER TABLE "order"
-    ADD COLUMN IF NOT EXISTS id_table INT NOT NULL,
-    ADD COLUMN IF NOT EXISTS arrival_datetime TIMESTAMP NOT NULL,
-    ADD COLUMN IF NOT EXISTS departure_datetime TIMESTAMP NOT NULL;
+    ADD COLUMN id_table INT NOT NULL,
+    ADD COLUMN arrival_datetime TIMESTAMP NOT NULL,
+    ADD COLUMN departure_datetime TIMESTAMP NOT NULL;
 
 ALTER TABLE "order"
-    ADD CONSTRAINT IF NOT EXISTS fk_order_table
+    ADD CONSTRAINT fk_order_table
         FOREIGN KEY (id_table) REFERENCES restaurant_table(id);
 
 INSERT INTO restaurant_table (id, number) VALUES
     (1, 1),
     (2, 2),
     (3, 3)
-ON CONFLICT DO NOTHING;
+        ON CONFLICT (id) DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('restaurant_table', 'id'), coalesce(max(id), 1)) FROM restaurant_table;
