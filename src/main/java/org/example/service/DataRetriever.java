@@ -656,7 +656,53 @@ public class DataRetriever {
     return new Order(generatedOrderId, savedReference, savedCreationDateTime, dishOrders);
   }
 
-  private String generateOrderReference(Connection conn) throws SQLException {
+  public StockValue getStockValueAt(Instant t, Integer ingredientIdentifier) {
+
+    String sql =
+        """
+            SELECT
+                unit,
+                SUM(
+                    CASE
+                        WHEN type = 'OUT' THEN quantity * -1
+                        ELSE quantity
+                    END
+                ) AS actual_quantity
+            FROM stock_movement
+            WHERE id_ingredient = ?
+            AND creation_datetime <= ?
+            GROUP BY unit
+        """;
+
+    Connection connection = dbConnection.getDBConnection();
+
+    try (PreparedStatement ps = connection.prepareStatement(sql)) {
+
+      ps.setInt(1, ingredientIdentifier);
+      ps.setTimestamp(2, Timestamp.from(t));
+
+      ResultSet rs = ps.executeQuery();
+
+      if (rs.next()) {
+
+        double quantity = rs.getDouble("actual_quantity");
+        String unitStr = rs.getString("unit");
+
+        Unit unit = Unit.valueOf(unitStr);
+
+        return new StockValue(quantity, unit);
+      }
+
+      return new StockValue(0.0, null);
+
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    } finally {
+      dbConnection.close(connection);
+    }
+  }
+
+    private String generateOrderReference(Connection conn) throws SQLException {
     String sql = "SELECT nextval('order_reference_seq') AS seq";
     try (PreparedStatement ps = conn.prepareStatement(sql);
         ResultSet rs = ps.executeQuery()) {
@@ -708,7 +754,6 @@ public class DataRetriever {
     ingredient.setStockMovementList(movements);
     return ingredient;
   }
-
 
   private void checkDuplicatesInList(List<Ingredient> ingredients) {
     Set<String> names = new HashSet<>();
