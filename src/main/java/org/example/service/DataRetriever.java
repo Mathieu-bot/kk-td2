@@ -702,6 +702,31 @@ public class DataRetriever {
     }
   }
 
+    public double getDishCost(Integer dishId) {
+        String sql =
+                """
+                SELECT SUM(di.quantity_required * i.price) AS total_cost
+                FROM dish_ingredient di
+                JOIN ingredient i ON i.id = di.id_ingredient
+                WHERE di.id_dish = ?
+                """;
+
+        try (Connection conn = dbConnection.getDBConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, dishId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getDouble("total_cost");
+                } else {
+                    return 0.0;
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private String generateOrderReference(Connection conn) throws SQLException {
     String sql = "SELECT nextval('order_reference_seq') AS seq";
     try (PreparedStatement ps = conn.prepareStatement(sql);
